@@ -12,6 +12,9 @@
     "react-native-stripe-terminal.podspec"
   ],
   "scripts": {
+    "example": "yarn --cwd example",
+    "bootstrap": "yarn example && yarn pods",
+    "pods": "cd example && pod-install --quiet",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -34,6 +37,7 @@
     "react-native": ">=0.60.0-rc.0 <1.0.x"
   },
   "devDependencies": {
+    "pod-install": "^0.1.32",
     "react": "^16.9.0",
     "react-native": "^0.61.5"
   }
