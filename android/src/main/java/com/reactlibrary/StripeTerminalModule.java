@@ -1,4 +1,4 @@
-// StripeTerminalModule.java
+// RNStripeTerminalModule.java
 
 package com.reactlibrary;
 
@@ -7,18 +7,18 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.Callback;
 
-public class StripeTerminalModule extends ReactContextBaseJavaModule {
+public class RNStripeTerminalModule extends ReactContextBaseJavaModule {
 
     private final ReactApplicationContext reactContext;
 
-    public StripeTerminalModule(ReactApplicationContext reactContext) {
+    public RNStripeTerminalModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
     }
 
     @Override
     public String getName() {
-        return "StripeTerminal";
+        return "RNStripeTerminal";
     }
 
     @ReactMethod

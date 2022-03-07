@@ -1,4 +1,4 @@
-// StripeTerminalPackage.java
+// RNStripeTerminalPackage.java
 
 package com.reactlibrary;
 
@@ -11,10 +11,10 @@ import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.uimanager.ViewManager;
 
-public class StripeTerminalPackage implements ReactPackage {
+public class RNStripeTerminalPackage implements ReactPackage {
     @Override
     public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
-        return Arrays.<NativeModule>asList(new StripeTerminalModule(reactContext));
+        return Arrays.<NativeModule>asList(new RNStripeTerminalModule(reactContext));
     }
 
     @Override

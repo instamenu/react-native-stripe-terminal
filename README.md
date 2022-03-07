@@ -9,9 +9,10 @@
 `$ react-native link react-native-stripe-terminal`
 
 ## Usage
+
 ```javascript
-import StripeTerminal from 'react-native-stripe-terminal';
+import RNStripeTerminal from "react-native-stripe-terminal";
 
 // TODO: What to do with the module?
-StripeTerminal;
+RNStripeTerminal;
 ```
