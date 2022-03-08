@@ -66,13 +66,19 @@ static NSArray<SCPReader *> *readers;
 static SCPReader *reader;
 static SCPReaderSoftwareUpdate *readerSoftwareUpdate;
 static SCPCancelable *pendingInstallUpdate;
+static SCPCancelable *pendingCollectPaymentMethod;
 
 RCT_EXPORT_MODULE()
 
 // https://reactnative.dev/docs/native-modules-ios#exporting-constants
 + (BOOL)requiresMainQueueSetup
 {
-    return NO;
+    return YES;
+}
+
+- (dispatch_queue_t)methodQueue
+{
+    return dispatch_get_main_queue();
 }
 
 - (NSDictionary *)constantsToExport
@@ -101,19 +107,20 @@ RCT_EXPORT_MODULE()
 - (NSArray<NSString *> *)supportedEvents {
     return @[
         // @"abortCreatePaymentCompletion",
-        @"abortDiscoverReadersCompletion",
+        // @"abortDiscoverReadersCompletion",
         // @"abortInstallUpdateCompletion"
         // @"connectedReader",
-        // @"connectionStatus",
-        // @"didChangeConnectionStatus",
-        // @"didChangePaymentStatus",
+        @"connectionStatus",
+        @"didChangeConnectionStatus",
+        @"didChangePaymentStatus",
         // @"didDisconnectUnexpectedlyFromReader",
         @"didFinishInstallingUpdate",
         @"didReportAvailableUpdate",
+        @"didReportBatteryLevel",
         @"didReportLowBatteryWarning",
         @"didReportReaderEvent",
         @"didReportReaderSoftwareUpdateProgress",
-        // @"didReportUnexpectedReaderDisconnect",
+        @"didReportUnexpectedReaderDisconnect",
         @"didRequestReaderDisplayMessage",
         @"didRequestReaderInput",
         @"didStartInstallingUpdate",
@@ -127,7 +134,7 @@ RCT_EXPORT_MODULE()
         // @"paymentProcess",
         // @"paymentStatus",
         @"readerConnection",
-        // @"readerDisconnectCompletion",
+        @"readerDisconnectCompletion",
         @"readersDiscovered",
         @"readerDiscoveryCompletion",
         @"requestConnectionToken",
@@ -138,6 +145,7 @@ RCT_EXPORT_MODULE()
     [super invalidate];
     RCTLogInfo(@"INVALIDATE!");
     [self abortDiscoverReaders];
+    [self abortInstallUpdate];
     [self disconnectReader];
 }
 
@@ -200,26 +208,44 @@ RCT_EXPORT_METHOD(discoverReaders:(NSInteger *)discoveryMethod simulated:(BOOL *
             } else {
                 [self sendEventWithName:@"readerDiscoveryCompletion" body:@{}];
             }
+            pendingDiscoverReaders = nil;
         }];
     }
 }
 
-RCT_EXPORT_METHOD(abortDiscoverReaders) {
+
+
+- (void)abortDiscoverReaders {
+    RCTLogInfo(@"NATIVE: abortDiscoverReaders");
+    if (pendingDiscoverReaders && !pendingDiscoverReaders.completed) {
+        [pendingDiscoverReaders cancel:^(NSError * _Nullable error) {
+            if (error) {
+            } else {
+                pendingDiscoverReaders = nil;
+            }
+        }];
+        return;
+    }
+}
+
+RCT_EXPORT_METHOD(abortDiscoverReaders:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     RCTLogInfo(@"NATIVE: abortDiscoverReaders");
     if (pendingDiscoverReaders && !pendingDiscoverReaders.completed) {
         // [self sendEventWithName:@"log" body:@"inside if statement in abortDiscoverReaders"];
         [pendingDiscoverReaders cancel:^(NSError * _Nullable error) {
             if (error) {
-                [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{@"error": [error localizedDescription]}];
+                reject(@"abortDiscoverReadersFailure", [error localizedDescription], error);
+                // [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{@"error": [error localizedDescription]}];
             } else {
+                resolve(@{});
                 pendingDiscoverReaders = nil;
-                [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{}];
+                // [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{}];
             }
         }];
         return;
     }
-
-    [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{}];
+    resolve(@{});
+    // [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{}];
 }
 
 // SCPDiscoveryDelegate protocol
@@ -272,7 +298,6 @@ RCT_EXPORT_METHOD(abortDiscoverReaders) {
             @"deviceSoftwareVersion": update.deviceSoftwareVersion ? update.deviceSoftwareVersion : @"",
             @"requiredAt": requiredAt,
         };
-        return @{ @"update": updateDict};
     }
     return updateDict;
 }
@@ -330,10 +355,7 @@ RCT_EXPORT_METHOD(connectReader:(NSString *)serialNumber location:(NSString *)lo
 // SCPBluetoothReaderDelegate protocol
 - (void)reader:(nonnull SCPReader *)reader didRequestReaderInput:(SCPReaderInputOptions)inputOptions {
     RCTLogInfo(@"NATIVE: reader:didRequestReaderInput");
-    [self sendEventWithName:@"didRequestReaderInput" body:
-     @{
-       @"text": [SCPTerminal stringFromReaderInputOptions:inputOptions]
-       }];
+    [self sendEventWithName:@"didRequestReaderInput" body: @{ @"text": [SCPTerminal stringFromReaderInputOptions:inputOptions] }];
 }
 // SCPBluetoothReaderDelegate protocol
 - (void)reader:(nonnull SCPReader *)reader didRequestReaderDisplayMessage:(SCPReaderDisplayMessage)displayMessage {
@@ -383,6 +405,116 @@ RCT_EXPORT_METHOD(disconnectReader) {
         }
     }];
 }
+
+RCT_EXPORT_METHOD(getConnectionStatus) {
+    SCPConnectionStatus status = SCPTerminal.shared.connectionStatus;
+    [self sendEventWithName:@"connectionStatus" body:@(status)];
+}
+
+// SCPTerminalDelegate protocol
+- (void)terminal:(SCPTerminal *)terminal didReportUnexpectedReaderDisconnect:(SCPReader *)reader {
+    [self sendEventWithName:@"didReportUnexpectedReaderDisconnect" body:[self serializeReader:reader]];
+}
+
+// SCPTerminalDelegate protocol
+- (void)terminal:(SCPTerminal *)terminal didChangeConnectionStatus:(SCPConnectionStatus)status {
+    [self sendEventWithName:@"didChangeConnectionStatus" body: @{@"status": @(status)}];
+}
+
+// SCPTerminalDelegate protocol
+- (void)terminal:(SCPTerminal *)terminal didChangePaymentStatus:(SCPPaymentStatus)status {
+    [self sendEventWithName:@"didChangePaymentStatus" body:@{@"status": @(status) }];
+}
+
+
+- (void)abortInstallUpdate {
+    if (pendingInstallUpdate && !pendingInstallUpdate.completed) {
+        [pendingInstallUpdate cancel:^(NSError * _Nullable error) {
+            if (error) {
+                // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{@"error": }];
+                // reject(@"abortInstallUpdateFailure", [error localizedDescription], nil);
+            } else {
+                pendingInstallUpdate = nil;
+                // resolve(@{});
+                // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{}];
+            }
+        }];
+        return;
+    }
+    // resolve(@{});
+}
+
+
+RCT_EXPORT_METHOD(abortInstallUpdate:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    if (pendingInstallUpdate && !pendingInstallUpdate.completed) {
+        [pendingInstallUpdate cancel:^(NSError * _Nullable error) {
+            if (error) {
+                // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{@"error": }];
+                reject(@"abortInstallUpdateFailure", [error localizedDescription], error);
+            } else {
+                pendingInstallUpdate = nil;
+                resolve(@{});
+                // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{}];
+            }
+        }];
+        return;
+    }
+    resolve(@{});
+    // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{}];
+}
+
+
+
+
+
+
+
+// payment actions
+RCT_EXPORT_METHOD(createPaymentIntent:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    RCTLogInfo(@"NATIVE: createPaymentIntent");
+    SCPPaymentIntentParameters *params = [[SCPPaymentIntentParameters alloc] initWithAmount:1000 currency:@"usd"];
+    [[SCPTerminal shared] createPaymentIntent:params completion:^(SCPPaymentIntent *createResult, NSError *createError) {
+        if (createError) {
+            reject(@"createPaymentIntentFailure", [createError localizedDescription], createError);
+        } else {
+            resolve([createResult originalJSON]);
+        }
+    }];
+}
+
+RCT_EXPORT_METHOD(collectPaymentMethod:(SCPPaymentIntent *)createResult resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    pendingCollectPaymentMethod = [[SCPTerminal shared] collectPaymentMethod:createResult completion:^(SCPPaymentIntent *result, NSError *error) {
+        if (error) {
+            // NSLog(@"collectPaymentMethod failed: %@", collectError);
+            reject(@"collectPaymentMethodFailure", [error localizedDescription], error);
+        }
+        else {
+            // NSLog(@"collectPaymentMethod succeeded");
+            resolve([result originalJSON]);
+            // ... Process the payment
+        }
+    }];
+}
+
+RCT_EXPORT_METHOD(abortCollectPaymentMethod:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    if (pendingCollectPaymentMethod && !pendingCollectPaymentMethod.completed) {
+        [pendingCollectPaymentMethod cancel:^(NSError * _Nullable error) {
+            if (error) {
+                // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{@"error": }];
+                reject(@"abortCollectPaymentMethodFailure", [error localizedDescription], error);
+            } else {
+                pendingCollectPaymentMethod = nil;
+                resolve(@{});
+                // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{}];
+            }
+        }];
+        return;
+    }
+    resolve(@{});
+    // [self sendEventWithName:@"abortInstallUpdateCompletion" body:@{}];
+}
+
+
 
 @end
 

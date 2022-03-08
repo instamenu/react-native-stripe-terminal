@@ -12,6 +12,6 @@
     @property NiceEventEmitter *eventDelegate;
 @end
 
-@interface RNStripeTerminal : NiceEventEmitter <RCTInvalidating, SCPDiscoveryDelegate, SCPBluetoothReaderDelegate>
+@interface RNStripeTerminal : NiceEventEmitter <RCTInvalidating, SCPDiscoveryDelegate, SCPBluetoothReaderDelegate, SCPTerminalDelegate>
 
 @end
