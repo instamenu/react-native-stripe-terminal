@@ -15,3 +15,7 @@
 @interface RNStripeTerminal : NiceEventEmitter <RCTInvalidating, SCPDiscoveryDelegate, SCPBluetoothReaderDelegate, SCPTerminalDelegate>
 
 @end
+
+// @interface RNStripeTerminalFactory <RCTBridgeDelegate>
+
+// @end

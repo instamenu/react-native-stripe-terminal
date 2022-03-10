@@ -1,8 +1,8 @@
-import StripeTerminal from "./index";
+import { StripeTerminal } from "./StripeTerminal";
 import { useEffect, useState } from "react";
 
 export function useStripeTerminalConnection() {
-  const [state, setState] = useState({ status: "NOT_CONNECTED", readers: [] });
+  const [state, setState] = useState(StripeTerminal.connection);
   useEffect(() => {
     const subscriptions = [
       // StripeTerminal.addListener("abortDiscoverReadersCompletion", (...a) => {
@@ -23,14 +23,6 @@ export function useStripeTerminalConnection() {
       StripeTerminal.addListener("didReportReaderEvent", (...a) => {
         console.log("didReportReaderEvent", a);
       }),
-
-      StripeTerminal.addListener("didRequestReaderDisplayMessage", (...a) => {
-        console.log("didRequestReaderDisplayMessage", a);
-      }),
-      StripeTerminal.addListener("didRequestReaderInput", (...a) => {
-        console.log("didRequestReaderInput", a);
-      }),
-
       StripeTerminal.addListener("readersDiscovered", (...a) => {
         console.log("readersDiscovered", a);
       }),
@@ -41,10 +33,21 @@ export function useStripeTerminalConnection() {
         console.log("requestConnectionToken", a);
       }),
     ];
-    StripeTerminal.on("stateChange", setState);
+    StripeTerminal.on("connectionChange", setState);
     return () => {
-      StripeTerminal.off("stateChange", setState);
+      StripeTerminal.off("connectionChange", setState);
       subscriptions.forEach((subscription) => subscription.remove());
+    };
+  }, []);
+  return state;
+}
+
+export function useStripeTerminalPayment() {
+  const [state, setState] = useState(StripeTerminal.payment);
+  useEffect(() => {
+    StripeTerminal.on("paymentChange", setState);
+    return () => {
+      StripeTerminal.off("paymentChange", setState);
     };
   }, []);
   return state;
