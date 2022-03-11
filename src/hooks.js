@@ -1,5 +1,5 @@
-import { StripeTerminal } from "./StripeTerminal";
-import { useEffect, useState } from "react";
+import { StripeTerminal } from './StripeTerminal';
+import { useEffect, useState } from 'react';
 
 export function useStripeTerminalConnection() {
   const [state, setState] = useState(StripeTerminal.connection);
@@ -8,34 +8,34 @@ export function useStripeTerminalConnection() {
       // StripeTerminal.addListener("abortDiscoverReadersCompletion", (...a) => {
       //   console.log("abortDiscoverReadersCompletion", a);
       // }),
-      StripeTerminal.addListener("didFinishInstallingUpdate", (...a) => {
-        console.log("didFinishInstallingUpdate", a);
+      StripeTerminal.addListener('didFinishInstallingUpdate', (...a) => {
+        console.log('didFinishInstallingUpdate', a);
       }),
-      StripeTerminal.addListener("didReportAvailableUpdate", (...a) => {
-        console.log("didReportAvailableUpdate", a);
+      StripeTerminal.addListener('didReportAvailableUpdate', (...a) => {
+        console.log('didReportAvailableUpdate', a);
       }),
-      StripeTerminal.addListener("didReportBatteryLevel", (...a) => {
-        console.log("didReportBatteryLevel", a);
+      StripeTerminal.addListener('didReportBatteryLevel', (...a) => {
+        console.log('didReportBatteryLevel', a);
       }),
-      StripeTerminal.addListener("didReportLowBatteryWarning", (...a) => {
-        console.log("didReportLowBatteryWarning", a);
+      StripeTerminal.addListener('didReportLowBatteryWarning', (...a) => {
+        console.log('didReportLowBatteryWarning', a);
       }),
-      StripeTerminal.addListener("didReportReaderEvent", (...a) => {
-        console.log("didReportReaderEvent", a);
+      StripeTerminal.addListener('didReportReaderEvent', (...a) => {
+        console.log('didReportReaderEvent', a);
       }),
-      StripeTerminal.addListener("readersDiscovered", (...a) => {
-        console.log("readersDiscovered", a);
+      StripeTerminal.addListener('readersDiscovered', (...a) => {
+        console.log('readersDiscovered', a);
       }),
-      StripeTerminal.addListener("readerDiscoveryCompletion", (...a) => {
-        console.log("readerDiscoveryCompletion", a);
+      StripeTerminal.addListener('readerDiscoveryCompletion', (...a) => {
+        console.log('readerDiscoveryCompletion', a);
       }),
-      StripeTerminal.addListener("requestConnectionToken", (...a) => {
-        console.log("requestConnectionToken", a);
+      StripeTerminal.addListener('requestConnectionToken', (...a) => {
+        console.log('requestConnectionToken', a);
       }),
     ];
-    StripeTerminal.on("connectionChange", setState);
+    StripeTerminal.on('connectionChange', setState);
     return () => {
-      StripeTerminal.off("connectionChange", setState);
+      StripeTerminal.off('connectionChange', setState);
       subscriptions.forEach((subscription) => subscription.remove());
     };
   }, []);
@@ -45,9 +45,9 @@ export function useStripeTerminalConnection() {
 export function useStripeTerminalPayment() {
   const [state, setState] = useState(StripeTerminal.payment);
   useEffect(() => {
-    StripeTerminal.on("paymentChange", setState);
+    StripeTerminal.on('paymentChange', setState);
     return () => {
-      StripeTerminal.off("paymentChange", setState);
+      StripeTerminal.off('paymentChange', setState);
     };
   }, []);
   return state;
