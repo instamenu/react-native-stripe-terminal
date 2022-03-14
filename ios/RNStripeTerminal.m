@@ -282,7 +282,7 @@ RCT_EXPORT_METHOD(abortDiscoverReaders:(RCTPromiseResolveBlock)resolve rejecter:
 }
 
 - (NSDictionary *)serializeReader:(SCPReader *)reader {
-    if(!reader) return nil;
+    if(!reader) return [NSNull null];
     return @{
         // All Readers
         @"deviceType": @(reader.deviceType), // enum
