@@ -189,6 +189,10 @@ class StripeTerminal extends EventEmitter {
     return RNStripeTerminal.getCurrentState();
   }
 
+  async retrievePaymentIntent(clientSecret) {
+    return RNStripeTerminal.retrievePaymentIntent(clientSecret);
+  }
+
   async processPayment({ paymentIntent }) {
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to processPayment.';

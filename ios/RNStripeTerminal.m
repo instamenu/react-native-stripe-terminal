@@ -599,6 +599,18 @@ RCT_EXPORT_METHOD(processPayment:(NSDictionary *)paymentIntent resolver:(RCTProm
              };
 }
 
+RCT_EXPORT_METHOD(retrievePaymentIntent:(nonnull NSString *)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    [[SCPTerminal shared] retrievePaymentIntent:clientSecret completion:^(SCPPaymentIntent *result, NSError *error) {
+            if (error) {
+                NSLog(@"retrievePaymentIntent failed: %@", error);
+                reject(@"retrievePaymentIntentFailure", [error localizedDescription], error);
+            } else {
+                resolve([result originalJSON]);
+            }
+        }];
+}
+
+
 // - (NSDictionary *)serializeCharge:(SCPCharge *)charge {
 //     return @{
 //              @"amount": @(charge.amount),
