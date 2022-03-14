@@ -4,8 +4,23 @@ const { RNStripeTerminal } = NativeModules;
 const constants = RNStripeTerminal.getConstants();
 const nativeEventEmitter = new NativeEventEmitter(RNStripeTerminal);
 
+console.log('stripe terminal: preamble');
+
+const ConnectionStatus = {
+  0: 'NOT_CONNECTED',
+  1: 'CONNECTED',
+  2: 'CONNECTING',
+};
+
+const PaymentStatus = {
+  0: 'NOT_READY',
+  1: 'READY',
+  2: 'WAITING_FOR_INPUT',
+  3: 'PROCESSING',
+};
+
 class StripeTerminal extends EventEmitter {
-  _connection = { status: 'NOT_CONNECTED', readers: [] };
+  _connection = { status: ConnectionStatus[0], readers: [] };
   _payment = {};
   get connection() {
     return this._connection;
@@ -22,9 +37,11 @@ class StripeTerminal extends EventEmitter {
     this._payment = typeof value === 'function' ? value(this._payment) : value;
     this.emit('paymentChange', this._payment);
   }
-  initialize({ fetchConnectionToken }) {
+  async initialize({ fetchConnectionToken }) {
     if (this.initialized) {
-      ('StripeTerminal.initialize(...) has already been called. Skipping.');
+      console.info(
+        'StripeTerminal.initialize(...) has already been called. Skipping.'
+      );
       return;
     }
     this.initialized = true;
@@ -47,14 +64,14 @@ class StripeTerminal extends EventEmitter {
     nativeEventEmitter.addListener('readerDisconnectCompletion', () => {
       this.connection = {
         ...this.connection,
-        status: 'NOT_CONNECTED',
+        status: ConnectionStatus[0],
         reader: undefined,
       };
     });
     nativeEventEmitter.addListener('readerConnection', (reader) => {
       this.connection = {
         ...this.connection,
-        status: 'CONNECTED',
+        status: ConnectionStatus[1],
         reader,
         readers: [],
       };
@@ -92,7 +109,17 @@ class StripeTerminal extends EventEmitter {
       console.log('didChangePaymentStatus', args);
       // this.payment = { ...this.payment, inputRequest: text };
     });
-    return RNStripeTerminal.initialize();
+    const currentState = await RNStripeTerminal.initialize();
+    // const currentState = await this.getCurrentState();
+    this.connection = {
+      ...this.connection,
+      status: ConnectionStatus[currentState.status],
+      reader: currentState.reader,
+    };
+    this.payment = {
+      ...this.payment,
+      status: PaymentStatus[currentState.paymentStatus],
+    };
   }
   discoverReaders(discoveryMethod, simulated) {
     this.connection = { ...this.connection, status: 'DISCOVERING' };
@@ -102,7 +129,7 @@ class StripeTerminal extends EventEmitter {
     RNStripeTerminal.abortDiscoverReaders().then(() => {
       this.connection = {
         ...this.connection,
-        status: 'NOT_CONNECTED',
+        status: ConnectionStatus[0],
         readers: [],
       };
     });
@@ -111,7 +138,7 @@ class StripeTerminal extends EventEmitter {
     return nativeEventEmitter.addListener(...args);
   }
   connectReader(serialNumber, locationId) {
-    this.connection = { ...this.connection, status: 'CONNECTING' };
+    this.connection = { ...this.connection, status: ConnectionStatus[2] };
     RNStripeTerminal.connectReader(serialNumber, locationId);
   }
   disconnectReader() {

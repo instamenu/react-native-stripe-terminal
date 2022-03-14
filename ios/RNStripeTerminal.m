@@ -201,9 +201,7 @@ RCT_EXPORT_METHOD(initialize:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromis
     // initialized = true;
     
     //   if (hasListeners) { // Only send events if anyone is listening
-    resolve(@{
-        @"status": @"ok",
-    });
+    resolve([self getInternalState]);
     // fetchConnectionToken(@[@"12345678"]);
     // [self sendEventWithName:@"requestConnectionToken" body:@{@"name": "abcdefg"}];
 //   }
@@ -284,6 +282,7 @@ RCT_EXPORT_METHOD(abortDiscoverReaders:(RCTPromiseResolveBlock)resolve rejecter:
 }
 
 - (NSDictionary *)serializeReader:(SCPReader *)reader {
+    if(!reader) return nil;
     return @{
         // All Readers
         @"deviceType": @(reader.deviceType), // enum
@@ -429,14 +428,18 @@ RCT_EXPORT_METHOD(disconnectReader) {
 }
 
 RCT_EXPORT_METHOD(getCurrentState:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    resolve([self getInternalState]);
+}
+
+- (NSDictionary *)getInternalState {
     SCPConnectionStatus connectionStatus = SCPTerminal.shared.connectionStatus;
     SCPReader *reader = SCPTerminal.shared.connectedReader;
     SCPPaymentStatus paymentStatus = SCPTerminal.shared.paymentStatus;
-    resolve(@{
+    return @{
         @"reader": [self serializeReader:reader],
         @"connectionStatus": @(connectionStatus),
         @"paymentStatus": @(paymentStatus),
-    });
+    };
 }
 
 // SCPTerminalDelegate protocol
