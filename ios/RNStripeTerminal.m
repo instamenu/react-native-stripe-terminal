@@ -410,19 +410,19 @@ RCT_EXPORT_METHOD(connectReader:(NSString *)serialNumber location:(NSString *)lo
     [self sendEventWithName:@"didReportLowBatteryWarning" body:@{}];
 }
 
-RCT_EXPORT_METHOD(disconnectReader) {
+RCT_EXPORT_METHOD(disconnectReader:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     RCTLogInfo(@"NATIVE: disconnectReader");
     if (!SCPTerminal.shared.connectedReader) {
         // No reader connected => "success"
-        [self sendEventWithName:@"readerDisconnectCompletion" body:@{}];
+        resolve(@{@"status":@"ok"})
         return;
     }
 
     [SCPTerminal.shared disconnectReader:^(NSError * _Nullable error) {
         if (error) {
-            [self sendEventWithName:@"readerDisconnectCompletion" body:@{@"error": [error localizedDescription]}];
+            reject(@"disconnectReaderFailure", [error localizedDescription], error);
         } else {
-            [self sendEventWithName:@"readerDisconnectCompletion" body:@{}];
+            resolve(@{@"status":@"ok"})
         }
     }];
 }

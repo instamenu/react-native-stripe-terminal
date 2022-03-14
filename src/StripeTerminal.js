@@ -4,8 +4,6 @@ const { RNStripeTerminal } = NativeModules;
 const constants = RNStripeTerminal.getConstants();
 const nativeEventEmitter = new NativeEventEmitter(RNStripeTerminal);
 
-console.log('stripe terminal: preamble');
-
 const ConnectionStatus = {
   0: 'NOT_CONNECTED',
   1: 'CONNECTED',
@@ -20,7 +18,7 @@ const PaymentStatus = {
 };
 
 class StripeTerminal extends EventEmitter {
-  _connection = { status: ConnectionStatus[0], readers: [] };
+  _connection = { status: 'NOT_INITIALIZED', readers: [] };
   _payment = {};
   get connection() {
     return this._connection;
@@ -107,13 +105,11 @@ class StripeTerminal extends EventEmitter {
     });
     nativeEventEmitter.addListener('didChangePaymentStatus', (...args) => {
       console.log('didChangePaymentStatus', args);
-      // this.payment = { ...this.payment, inputRequest: text };
     });
     const currentState = await RNStripeTerminal.initialize();
-    // const currentState = await this.getCurrentState();
     this.connection = {
       ...this.connection,
-      status: ConnectionStatus[currentState.status],
+      status: ConnectionStatus[currentState.connectionStatus],
       reader: currentState.reader,
     };
     this.payment = {
@@ -175,7 +171,11 @@ class StripeTerminal extends EventEmitter {
       }
       throw e;
     });
-    this.payment = { ...this.payment, paymentMethod, status: undefined };
+    this.payment = {
+      ...this.payment,
+      paymentMethod,
+      status: 'READY_TO_PROCESS',
+    };
     return paymentMethod;
   }
 
@@ -208,7 +208,7 @@ class StripeTerminal extends EventEmitter {
         throw e;
       }
     );
-    this.payment = { ...this.payment, payment, status: undefined };
+    this.payment = { ...this.payment, payment, status: 'PAYMENT_SUCCESS' };
     return payment;
   }
 }
