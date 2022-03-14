@@ -115,7 +115,7 @@ class StripeTerminal extends EventEmitter {
     RNStripeTerminal.connectReader(serialNumber, locationId);
   }
   disconnectReader() {
-    RNStripeTerminal.disconnectReader();
+    return RNStripeTerminal.disconnectReader();
   }
   async createPaymentIntent(parameters) {
     if (!parameters?.amount) {
@@ -156,6 +156,10 @@ class StripeTerminal extends EventEmitter {
     return RNStripeTerminal.abortCollectPaymentMethod().then(() => {
       this.payment = { ...this.payment, status: '' };
     });
+  }
+
+  async getCurrentState() {
+    return RNStripeTerminal.getCurrentState();
   }
 
   async processPayment({ paymentIntent }) {

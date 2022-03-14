@@ -21,6 +21,8 @@ export default function App() {
           .then(resp => resp.json())
           .then(json => json.secret);
       },
+    }).then(() => {
+      StripeTerminal.getCurrentState().then(state => console.log(state));
     });
   }, []);
 

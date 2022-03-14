@@ -425,9 +425,15 @@ RCT_EXPORT_METHOD(disconnectReader) {
     }];
 }
 
-RCT_EXPORT_METHOD(getConnectionStatus) {
-    SCPConnectionStatus status = SCPTerminal.shared.connectionStatus;
-    [self sendEventWithName:@"connectionStatus" body:@(status)];
+RCT_EXPORT_METHOD(getCurrentState:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    SCPConnectionStatus connectionStatus = SCPTerminal.shared.connectionStatus;
+    SCPReader *reader = SCPTerminal.shared.connectedReader;
+    SCPPaymentStatus paymentStatus = SCPTerminal.shared.paymentStatus;
+    resolve(@{
+        @"reader": [self serializeReader:reader],
+        @"connectionStatus": @(connectionStatus),
+        @"paymentStatus": @(paymentStatus),
+    });
 }
 
 // SCPTerminalDelegate protocol
