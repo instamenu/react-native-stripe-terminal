@@ -180,7 +180,8 @@ RCT_EXPORT_METHOD(setConnectionToken:(NSString *)token error:(NSString *)errorMe
     [connectionTokenProvider setConnectionToken:token error:errorMessage];
 }
 
-RCT_EXPORT_METHOD(initialize) {
+// RCT_EXPORT_METHOD() {
+RCT_EXPORT_METHOD(initialize:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     // [self sendEventWithName:@"log" body:@"initializeTerminal on native side"];
     // static initialized = false;
     RCTLogInfo(@"INITIALIZE!");
@@ -200,7 +201,9 @@ RCT_EXPORT_METHOD(initialize) {
     // initialized = true;
     
     //   if (hasListeners) { // Only send events if anyone is listening
-    
+    resolve(@{
+        @"status": @"ok",
+    });
     // fetchConnectionToken(@[@"12345678"]);
     // [self sendEventWithName:@"requestConnectionToken" body:@{@"name": "abcdefg"}];
 //   }

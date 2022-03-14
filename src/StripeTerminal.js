@@ -92,7 +92,7 @@ class StripeTerminal extends EventEmitter {
       console.log('didChangePaymentStatus', args);
       // this.payment = { ...this.payment, inputRequest: text };
     });
-    RNStripeTerminal.initialize();
+    return RNStripeTerminal.initialize();
   }
   discoverReaders(discoveryMethod, simulated) {
     this.connection = { ...this.connection, status: 'DISCOVERING' };
