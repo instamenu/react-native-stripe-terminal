@@ -165,7 +165,13 @@ RCT_EXPORT_MODULE()
     RCTLogInfo(@"INVALIDATE!");
     [self abortDiscoverReaders];
     [self abortInstallUpdate];
-    [self disconnectReader];
+    if (pendingCollectPaymentMethod && !pendingCollectPaymentMethod.completed) {
+        [pendingCollectPaymentMethod cancel:^(NSError * _Nullable error) {
+            [self disconnectReader];        
+        }
+    } else {
+        [self disconnectReader];
+    }
 }
 
 - (id)init {

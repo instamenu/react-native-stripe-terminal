@@ -19,13 +19,19 @@ const PaymentStatus = {
 
 class StripeTerminal extends EventEmitter {
   _connection = { status: 'NOT_INITIALIZED', readers: [] };
-  _payment = {};
+  _payment = { status: 'NOT_CONNECTED' };
   get connection() {
     return this._connection;
   }
   set connection(value) {
     this._connection =
       typeof value === 'function' ? value(this._connection) : value;
+    if (value.status !== this._connection.status) {
+      this.payment = {
+        ...this.payment,
+        status: value.status === 'CONNECTED' ? 'READY' : 'NOT_CONNECTED',
+      };
+    }
     this.emit('connectionChange', this._connection);
   }
   get payment() {
@@ -149,11 +155,12 @@ class StripeTerminal extends EventEmitter {
         'No currency provided to createPaymentIntent. Defaulting to `usd`.'
       );
     }
+    this.payment = { paymentIntent, status: 'CREATING_PAYMENT_INTENT' };
     const paymentIntent = await RNStripeTerminal.createPaymentIntent({
       amount: parameters.amount,
       currency: parameters?.currency ?? 'usd',
     });
-    this.payment = { paymentIntent };
+    this.payment = { paymentIntent, status: 'READY' };
     return paymentIntent;
   }
 
@@ -161,7 +168,7 @@ class StripeTerminal extends EventEmitter {
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to collectPaymentMethod.';
     }
-    this.payment = { ...this.payment, status: 'COLLECTING_PAYMENT_METHOD' };
+    this.payment = { ...this.payment, status: 'WAITING_FOR_INPUT' };
     const paymentMethod = await RNStripeTerminal.collectPaymentMethod(
       paymentIntent
     ).catch((e) => {
@@ -181,7 +188,7 @@ class StripeTerminal extends EventEmitter {
 
   async abortCollectPaymentMethod() {
     return RNStripeTerminal.abortCollectPaymentMethod().then(() => {
-      this.payment = { ...this.payment, status: '' };
+      this.payment = { ...this.payment, status: 'READY' };
     });
   }
 
@@ -198,18 +205,14 @@ class StripeTerminal extends EventEmitter {
       throw 'You must provide a paymentIntent to processPayment.';
     }
     this.payment = { ...this.payment, status: 'PROCESSING_PAYMENT' };
-    const payment = await RNStripeTerminal.processPayment(paymentIntent).catch(
-      (e) => {
-        // if (e.message === "The command was canceled.") {
-        //   // if the command was manually canceled, don’t consider it an error
-        //   return;
-        // }
-        console.error(e);
-        throw e;
-      }
-    );
-    this.payment = { ...this.payment, payment, status: 'PAYMENT_SUCCESS' };
-    return payment;
+    return RNStripeTerminal.processPayment(paymentIntent).then((pi) => {
+      this.payment = {
+        ...this.payment,
+        payment: pi,
+        status: 'PAYMENT_SUCCESS',
+      };
+      return pi;
+    });
   }
 }
 
