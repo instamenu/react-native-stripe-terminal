@@ -168,7 +168,7 @@ RCT_EXPORT_MODULE()
     if (pendingCollectPaymentMethod && !pendingCollectPaymentMethod.completed) {
         [pendingCollectPaymentMethod cancel:^(NSError * _Nullable error) {
             [self disconnectReader];        
-        }
+        }];
     } else {
         [self disconnectReader];
     }
