@@ -254,6 +254,11 @@ RCT_EXPORT_METHOD(discoverReaders:(NSInteger *)discoveryMethod simulated:(BOOL *
     }
 }
 
+RCT_EXPORT_METHOD(setSimulatedCard:(NSUInteger)cardType resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
+    SCPTerminal.shared.simulatorConfiguration.simulatedCard = [[SCPSimulatedCard alloc] initWithType:cardType];
+    resolve(@{@"status": @"ok"});
+}
+
 RCT_EXPORT_METHOD(abortDiscoverReaders:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     RCTLogInfo(@"NATIVE: abortDiscoverReaders");
     if (pendingDiscoverReaders && !pendingDiscoverReaders.completed) {
@@ -269,8 +274,9 @@ RCT_EXPORT_METHOD(abortDiscoverReaders:(RCTPromiseResolveBlock)resolve rejecter:
             }
         }];
         return;
+    } else {
+        resolve(@{});
     }
-    resolve(@{});
     // [self sendEventWithName:@"abortDiscoverReadersCompletion" body:@{}];
 }
 
@@ -527,7 +533,7 @@ RCT_EXPORT_METHOD(createPaymentIntent:(NSDictionary *)parameters resolver:(RCTPr
             reject(@"createPaymentIntentFailure", [error localizedDescription], error);
         } else {
             // resolve([self serializePaymentIntent:result]);
-            resolve([result originalJSON]);
+            resolve([self serializePaymentIntent:result]);
         }
     }];
 }
@@ -546,7 +552,7 @@ RCT_EXPORT_METHOD(collectPaymentMethod:(NSDictionary *)paymentIntent resolver:(R
         }
         else {
             NSLog(@"collectPaymentMethod succeeded. PI status: %lu", [result status]);
-            resolve([result originalJSON]);
+            resolve([self serializePaymentIntent:result]);
             // ... Process the payment
         }
     }];
@@ -581,7 +587,7 @@ RCT_EXPORT_METHOD(processPayment:(NSDictionary *)paymentIntent resolver:(RCTProm
                         }
                         else {
                             NSLog(@"processPayment succeeded");
-                            resolve([result originalJSON]);
+                            resolve([self serializePaymentIntent:result]);
                             // Notify your backend to capture the PaymentIntent
                             // [[APPAPIClient shared] capturePaymentIntent:processResult.stripeId completion:^(NSError *captureError) {
                             //     if (captureError) {
@@ -601,18 +607,20 @@ RCT_EXPORT_METHOD(processPayment:(NSDictionary *)paymentIntent resolver:(RCTProm
     // NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     // [formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZZZZ"];
     // NSString *createdDate = [formatter stringFromDate:intent.created];
-
-    return @{
-             @"stripeId": intent.stripeId,
-             @"created": intent.created,
-             @"status": @"requires_payment_method",//@(intent.status),
-             @"amount": @(intent.amount),
-             @"currency": intent.currency,
-            //  @"metadata": intent.metadata
-            // @"charges": [intent.charges mapObjectsUsingBlock:^(id obj, NSUInteger idx) {
-            //     return [self serializeCharge:obj];
-            // }],
-             };
+    NSMutableDictionary *json = [[intent originalJSON] mutableCopy];
+    json[@"pi_status"] = [SCPTerminal stringFromPaymentIntentStatus:intent.status];
+    return json;
+    // return @{
+    //          @"stripeId": intent.stripeId,
+    //          @"created": intent.created,
+    //          @"status": @"requires_payment_method",//@(intent.status),
+    //          @"amount": @(intent.amount),
+    //          @"currency": intent.currency,
+    //         //  @"metadata": intent.metadata
+    //         // @"charges": [intent.charges mapObjectsUsingBlock:^(id obj, NSUInteger idx) {
+    //         //     return [self serializeCharge:obj];
+    //         // }],
+    //          };
 }
 
 RCT_EXPORT_METHOD(retrievePaymentIntent:(nonnull NSString *)clientSecret resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
@@ -621,7 +629,7 @@ RCT_EXPORT_METHOD(retrievePaymentIntent:(nonnull NSString *)clientSecret resolve
                 NSLog(@"retrievePaymentIntent failed: %@", error);
                 reject(@"retrievePaymentIntentFailure", [error localizedDescription], error);
             } else {
-                resolve([result originalJSON]);
+                resolve([self serializePaymentIntent:result]);
             }
         }];
 }

@@ -125,10 +125,10 @@ class StripeTerminal extends EventEmitter {
   }
   discoverReaders(discoveryMethod, simulated) {
     this.connection = { ...this.connection, status: 'DISCOVERING' };
-    RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
+    return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
   }
   abortDiscoverReaders() {
-    RNStripeTerminal.abortDiscoverReaders().then(() => {
+    return RNStripeTerminal.abortDiscoverReaders().then(() => {
       this.connection = {
         ...this.connection,
         status: ConnectionStatus[0],
@@ -141,7 +141,7 @@ class StripeTerminal extends EventEmitter {
   }
   connectReader(serialNumber, locationId) {
     this.connection = { ...this.connection, status: ConnectionStatus[2] };
-    RNStripeTerminal.connectReader(serialNumber, locationId);
+    return RNStripeTerminal.connectReader(serialNumber, locationId);
   }
   disconnectReader() {
     return RNStripeTerminal.disconnectReader();
