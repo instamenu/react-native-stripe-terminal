@@ -10,14 +10,19 @@
     "index.js",
     "ios",
     "src",
+    "app.plugin.js",
+    "plugin",
     "react-native-stripe-terminal.podspec"
   ],
   "scripts": {
-    "lint": "eslint \"**/*.{js,ts,tsx}\"",
+    "lint": "eslint \"**/*.{js,ts,tsx}\" --fix",
     "example": "yarn --cwd example",
     "bootstrap": "yarn example && yarn && yarn pods",
     "pods": "cd example && pod-install --quiet",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "yarn build:plugin",
+    "build:plugin": "tsc --build plugin",
+    "lint:plugin": "eslint plugin/src/*"
   },
   "repository": {
     "type": "git",
@@ -40,11 +45,16 @@
   },
   "devDependencies": {
     "pod-install": "^0.1.32",
+    "expo-module-scripts": "^2.0.0",
+    "typescript": "4.6.2",
     "@react-native-community/eslint-config": "^2.0.0",
     "eslint": "^7.2.0",
     "eslint-config-prettier": "^7.0.0",
     "eslint-plugin-prettier": "^3.1.3",
-    "prettier": "^2.0.5"
+    "prettier": "^2.0.5",
+    "react": "16.13.1",
+    "react-native": "0.63.4",
+    "@expo/config-plugins": "^4.1.0"
   },
   "dependencies": {
     "events": "^3.3.0"
