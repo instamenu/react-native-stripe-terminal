@@ -128,6 +128,9 @@ class StripeTerminal extends EventEmitter {
         };
       }
     );
+    nativeEventEmitter.addListener('log', (...a) => {
+      console.log(a);
+    });
     nativeEventEmitter.addListener('didFinishInstallingUpdate', () => {
       this.connection = { ...this.connection, update: undefined };
     });

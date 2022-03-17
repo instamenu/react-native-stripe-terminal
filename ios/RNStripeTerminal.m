@@ -144,7 +144,7 @@ RCT_EXPORT_MODULE()
         @"didRequestReaderInput",
         @"didStartInstallingUpdate",
         // @"lastReaderEvent",
-        // @"log",
+        @"log",
         // @"paymentCreation",
         // @"paymentIntentCancel",
         // @"paymentIntentCreation",
@@ -186,6 +186,14 @@ RCT_EXPORT_METHOD(setConnectionToken:(NSString *)token error:(NSString *)errorMe
     [connectionTokenProvider setConnectionToken:token error:errorMessage];
 }
 
+- (void)onLogEntry:(NSString * _Nonnull) logline {
+    if (self.bridge == nil) {
+        return;
+    }
+
+    [self sendEventWithName:@"log" body:logline];
+}
+
 // RCT_EXPORT_METHOD() {
 RCT_EXPORT_METHOD(initialize:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     // [self sendEventWithName:@"log" body:@"initializeTerminal on native side"];
@@ -200,9 +208,16 @@ RCT_EXPORT_METHOD(initialize:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromis
         connectionTokenProvider = [[ConnectionTokenProvider alloc] init];
         [connectionTokenProvider setEventDelegate:self];
         [SCPTerminal setTokenProvider:connectionTokenProvider];
+        [SCPTerminal setLogListener:^(NSString * _Nonnull logline) {
+            [self onLogEntry:logline];
+        }];
+        SCPTerminal.shared.logLevel = SCPLogLevelVerbose;
+        [SCPTerminal.shared clearCachedCredentials];
+        SCPTerminal.shared.delegate = self;
     });
 
     [connectionTokenProvider setEventDelegate:self];
+    // SCPTerminal.shared.logLevel = SCPLogLevelVerbose;
     // [tokenProvider setEventEmitter:self];
     // initialized = true;
     
