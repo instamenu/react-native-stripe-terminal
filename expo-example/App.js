@@ -19,6 +19,10 @@ export default function App() {
           { method: 'POST' }
         )
           .then((resp) => resp.json())
+          .then((j) => {
+            console.log(JSON.stringify(j, null, 2));
+            return j;
+          })
           .then((json) => json.secret);
       },
     }).then((currentState) => {
