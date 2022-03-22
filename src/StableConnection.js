@@ -27,6 +27,7 @@ class StableConnection extends EventEmitter {
   _desiredState = { status: 'NOT_CONNECTED' };
   constructor() {
     super();
+    StripeTerminal.on('connectionChange', () => retry(this.process.bind(this)));
   }
   initialize(...args) {
     StripeTerminal.initialize(...args);
@@ -42,6 +43,7 @@ class StableConnection extends EventEmitter {
     );
   }
   async process() {
+    console.log('processsss');
     if (this._processing) return;
     this._processing = true;
     if (this.isInDesiredState()) {
@@ -50,10 +52,7 @@ class StableConnection extends EventEmitter {
       return;
     }
     console.log(
-      'attempting to transition state from: ',
-      StripeTerminal.connection,
-      'to:',
-      this._desiredState
+      `attempting to transition state from: ${StripeTerminal.connection.status} to: ${this._desiredState.status}`
     );
     if (
       this._previousConnectionState === StripeTerminal.connection &&
@@ -61,21 +60,26 @@ class StableConnection extends EventEmitter {
     ) {
       // we’re stuck: nothing has changed, and we must have reached the end of our retries.
       // wait for something to change to try again.
-      StripeTerminal.once('connectionChange', () =>
-        retry(this.process.bind(this))
+      console.log(
+        'state hasn’t changed. listen for a change before trying again.'
       );
+      this._processing = false;
+      // StripeTerminal.once('connectionChange', () => retry(this.process.bind(this)));
       return;
-      // and also try again much later
-      // await wait(5000);
-      // return this.process();
     }
     this._previousConnectionState = StripeTerminal.connection;
     this._previousDesiredState = this._desiredState;
     if (this._desiredState.status === 'NOT_CONNECTED') {
-      await (() => StripeTerminal.disconnectReader());
+      await StripeTerminal.disconnectReader();
     }
     if (this._desiredState.status === 'DISCOVERING') {
       if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
+        if (
+          StripeTerminal.connection.discoveryError ===
+          'Could not execute discoverReaders because the SDK is busy with another command: discoverReaders.'
+        ) {
+          await StripeTerminal.abortDiscoverReaders();
+        }
         await StripeTerminal.discoverReaders(
           this._desiredState.discoveryMethod,
           this._desiredState.simulated
@@ -85,6 +89,9 @@ class StableConnection extends EventEmitter {
       }
     }
     if (this._desiredState.status === 'CONNECTED') {
+      if (StripeTerminal.connection.status === 'NOT_INITIALIZED') {
+        await StripeTerminal._init;
+      }
       if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
         await StripeTerminal.discoverReaders(
           this._desiredState.discoveryMethod,
@@ -92,19 +99,24 @@ class StableConnection extends EventEmitter {
         );
       }
       if (StripeTerminal.connection.status === 'DISCOVERING') {
-        const foundDesiredReader = StripeTerminal.connection.readers.find(
-          (r) => r.serialNumber === this._desiredState.serialNumber
-        );
-        if (foundDesiredReader) {
-          await StripeTerminal.connectReader(
-            this._desiredState.serialNumber,
-            this._desiredState.location
+        const findAndConnect = async (connection) => {
+          const foundDesiredReader = connection.readers.find(
+            (r) => r.serialNumber === this._desiredState.serialNumber
           );
-        }
+          console.log('ran find and connect, found: ', !!foundDesiredReader);
+          if (foundDesiredReader) {
+            await StripeTerminal.connectReader(
+              this._desiredState.serialNumber,
+              this._desiredState.location
+            );
+            return true;
+          }
+        };
+        await findAndConnect(StripeTerminal.connection);
       }
     }
     this._processing = false;
-    this.process();
+    return this.process();
   }
 }
 

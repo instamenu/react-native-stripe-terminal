@@ -8,7 +8,6 @@ const eventTypes = [
   'connectionStatus',
   'didChangeConnectionStatus',
   'didChangePaymentStatus',
-  'didDisconnectUnexpectedlyFromReader',
   'didFinishInstallingUpdate',
   'didReportAvailableUpdate',
   'didReportBatteryLevel',
@@ -64,6 +63,7 @@ class StripeTerminal extends EventEmitter {
     return this._connection;
   }
   set connection(value) {
+    console.log('updated connection state: ', value);
     this._connection =
       typeof value === 'function' ? value(this._connection) : value;
     if (value.status !== this._connection.status) {
@@ -102,6 +102,13 @@ class StripeTerminal extends EventEmitter {
           )
         )
     );
+
+    nativeEventEmitter.addListener(
+      'didReportUnexpectedReaderDisconnect',
+      (readers) => {
+        this.connection = { ...this.connection, status: 'NOT_CONNECTED' };
+      }
+    );
     nativeEventEmitter.addListener('readersDiscovered', (readers) => {
       this.connection = { ...this.connection, readers };
     });
@@ -114,10 +121,11 @@ class StripeTerminal extends EventEmitter {
     });
     nativeEventEmitter.addListener('readerDiscoveryCompletion', (res) => {
       if (res.error) {
+        console.log('readerDiscoveryCompletion', res);
         this.connection = {
           ...this.connection,
           status: ConnectionStatus[0],
-          reader: undefined,
+          discoveryError: res.error,
         };
       } else {
         console.log('readerDiscoveryCompletion', res);
@@ -128,6 +136,8 @@ class StripeTerminal extends EventEmitter {
         ...this.connection,
         status: ConnectionStatus[1],
         reader,
+        serialNumber: reader.serialNumber,
+        location: reader.locationId,
         readers: [],
       };
     });
@@ -141,6 +151,7 @@ class StripeTerminal extends EventEmitter {
       }
     );
     nativeEventEmitter.addListener('log', (message) => {
+      // return;
       console.log(
         'StripeTerminal',
         Object.fromEntries(
@@ -205,7 +216,9 @@ class StripeTerminal extends EventEmitter {
       status: 'DISCOVERING',
       discoveryMethod,
       simulated,
+      discoveryError: undefined,
     };
+    console.log('CALLING DISCOVER');
     return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
   }
   async abortDiscoverReaders() {
@@ -213,6 +226,7 @@ class StripeTerminal extends EventEmitter {
     this.connection = {
       ...this.connection,
       status: ConnectionStatus[0],
+      discoveryError: undefined,
       readers: [],
     };
   }
