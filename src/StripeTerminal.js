@@ -8,7 +8,6 @@ const eventTypes = [
   'connectionStatus',
   'didChangeConnectionStatus',
   'didChangePaymentStatus',
-  'didDisconnectUnexpectedlyFromReader',
   'didFinishInstallingUpdate',
   'didReportAvailableUpdate',
   'didReportBatteryLevel',
@@ -53,6 +52,7 @@ const PaymentStatus = {
 class StripeTerminal extends EventEmitter {
   _connection = { status: 'NOT_INITIALIZED', readers: [] };
   _payment = { status: 'NOT_CONNECTED' };
+  _abort = () => {};
   constructor() {
     super();
     this._init = new Promise((resolve) => {
@@ -63,6 +63,7 @@ class StripeTerminal extends EventEmitter {
     return this._connection;
   }
   set connection(value) {
+    console.log('updated connection state: ', value);
     this._connection =
       typeof value === 'function' ? value(this._connection) : value;
     if (value.status !== this._connection.status) {
@@ -101,6 +102,13 @@ class StripeTerminal extends EventEmitter {
           )
         )
     );
+
+    nativeEventEmitter.addListener(
+      'didReportUnexpectedReaderDisconnect',
+      (readers) => {
+        this.connection = { ...this.connection, status: 'NOT_CONNECTED' };
+      }
+    );
     nativeEventEmitter.addListener('readersDiscovered', (readers) => {
       this.connection = { ...this.connection, readers };
     });
@@ -111,11 +119,25 @@ class StripeTerminal extends EventEmitter {
         reader: undefined,
       };
     });
+    nativeEventEmitter.addListener('readerDiscoveryCompletion', (res) => {
+      if (res.error) {
+        console.log('readerDiscoveryCompletion', res);
+        this.connection = {
+          ...this.connection,
+          status: ConnectionStatus[0],
+          discoveryError: res.error,
+        };
+      } else {
+        console.log('readerDiscoveryCompletion', res);
+      }
+    });
     nativeEventEmitter.addListener('readerConnection', (reader) => {
       this.connection = {
         ...this.connection,
         status: ConnectionStatus[1],
         reader,
+        serialNumber: reader.serialNumber,
+        location: reader.locationId,
         readers: [],
       };
     });
@@ -128,13 +150,33 @@ class StripeTerminal extends EventEmitter {
         };
       }
     );
-    nativeEventEmitter.addListener('log', (...a) => {
-      console.log(a);
+    nativeEventEmitter.addListener('log', (message) => {
+      // return;
+      console.log(
+        'StripeTerminal',
+        Object.fromEntries(
+          message
+            .split(' ')
+            .slice(1)
+            .map((pair) => pair.split('='))
+            .filter(
+              ([key, value]) =>
+                ![
+                  'app_id',
+                  'sdk_version',
+                  'last_request_id',
+                  'scope',
+                  'time',
+                ].includes(key)
+            )
+        )
+      );
     });
     nativeEventEmitter.addListener('didFinishInstallingUpdate', () => {
       this.connection = { ...this.connection, update: undefined };
     });
     nativeEventEmitter.addListener('didStartInstallingUpdate', (update) => {
+      this._abort = this.abortInstallUpdate.bind(this);
       this.connection = {
         ...this.connection,
         update: { ...update, progress: 0 },
@@ -166,21 +208,27 @@ class StripeTerminal extends EventEmitter {
     };
     this._resolveInit();
   }
-  async discoverReaders(discoveryMethod, simulate) {
+  async discoverReaders(discoveryMethod, simulated) {
     await this._init;
-    console.log('really really discovering');
-    if (this.connection.status !== 'NOT_CONNECTED') return;
-    this.connection = { ...this.connection, status: 'DISCOVERING', simulate };
-    return RNStripeTerminal.discoverReaders(discoveryMethod, simulate);
+    this._abort = this.abortDiscoverReaders.bind(this);
+    this.connection = {
+      ...this.connection,
+      status: 'DISCOVERING',
+      discoveryMethod,
+      simulated,
+      discoveryError: undefined,
+    };
+    console.log('CALLING DISCOVER');
+    return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
   }
-  abortDiscoverReaders() {
-    return RNStripeTerminal.abortDiscoverReaders().then(() => {
-      this.connection = {
-        ...this.connection,
-        status: ConnectionStatus[0],
-        readers: [],
-      };
-    });
+  async abortDiscoverReaders() {
+    await RNStripeTerminal.abortDiscoverReaders();
+    this.connection = {
+      ...this.connection,
+      status: ConnectionStatus[0],
+      discoveryError: undefined,
+      readers: [],
+    };
   }
   addListener(...args) {
     return nativeEventEmitter.addListener(...args);
@@ -190,6 +238,7 @@ class StripeTerminal extends EventEmitter {
     return RNStripeTerminal.connectReader(serialNumber, locationId);
   }
   async disconnectReader() {
+    await this.abortCurrentOperation();
     return RNStripeTerminal.disconnectReader().then(() => {
       this.connection = { ...this.connection, status: ConnectionStatus[0] };
     });
@@ -213,6 +262,7 @@ class StripeTerminal extends EventEmitter {
   }
 
   async collectPaymentMethod({ paymentIntent }) {
+    this._abort = this.abortCollectPaymentMethod.bind(this);
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to collectPaymentMethod.';
     }
@@ -267,9 +317,16 @@ class StripeTerminal extends EventEmitter {
         throw e;
       });
   }
-
+  async abortInstallUpdate() {
+    return RNStripeTerminal.abortInstallUpdate().then(() => {
+      this.connection = { status: 'NOT_CONNECTED', readers: [] };
+    });
+  }
   setSimulatedCard(type) {
     return RNStripeTerminal.setSimulatedCard(type);
+  }
+  async abortCurrentOperation() {
+    return this._abort();
   }
 }
 

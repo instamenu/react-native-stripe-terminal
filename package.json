@@ -19,10 +19,7 @@
     "example": "yarn --cwd example",
     "bootstrap": "yarn example && yarn && yarn pods",
     "pods": "cd example && pod-install --quiet",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prepare": "yarn build:plugin",
-    "build:plugin": "tsc --build plugin",
-    "lint:plugin": "eslint plugin/src/*"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",

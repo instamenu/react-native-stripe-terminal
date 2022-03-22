@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "owner": "instamenu",
+    "name": "expo-example",
+    "slug": "expo-example",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "stripe-terminal-expo-example",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Bluetooth is required to connect to supported printers and card readers.",
+        "NSLocalNetworkUsageDescription": "Local network access is required to connect to ticket printers.",
+        "NSLocationWhenInUseUsageDescription": "Location access is required in order to accept payments.",
+        "NSBluetoothPeripheralUsageDescription": "Bluetooth access is required in order to connect to supported card readers.",
+        "UIBackgroundModes": ["bluetooth-central"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
