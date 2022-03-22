@@ -15,7 +15,7 @@ type Props = {
   locationPermissionText?: string;
 };
 
-const withCamera: ConfigPlugin<Props> = (config, props = {}) => {
+const withStripeTerminal: ConfigPlugin<Props> = (config, props = {}) => {
   if (config.ios == null) config.ios = {};
   if (config.ios.infoPlist == null) config.ios.infoPlist = {};
 
@@ -50,4 +50,4 @@ const withCamera: ConfigPlugin<Props> = (config, props = {}) => {
   return config;
 };
 
-export default createRunOncePlugin(withCamera, pkg.name, pkg.version);
+export default createRunOncePlugin(withStripeTerminal, pkg.name, pkg.version);
