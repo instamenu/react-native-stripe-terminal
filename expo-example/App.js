@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect } from 'react';
 import { ScrollView, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
+  StableConnection,
   StripeTerminal,
   useStripeTerminalConnection,
   useStripeTerminalPayment,
@@ -12,7 +13,7 @@ export default function App() {
   const connection = useStripeTerminalConnection();
   const payment = useStripeTerminalPayment();
   useEffect(() => {
-    StripeTerminal.initialize({
+    StableConnection.initialize({
       fetchConnectionToken: () => {
         return fetch(
           'https://instamenu-api-staging.herokuapp.com/connection_tokens',
@@ -25,16 +26,15 @@ export default function App() {
           })
           .then((json) => json.secret);
       },
-    }).then((currentState) => {
-      console.info(currentState);
     });
   }, []);
 
-  const discoverReaders = useCallback(() => {
-    StripeTerminal.discoverReaders(
-      StripeTerminal.DiscoveryMethodBluetoothScan,
-      0
-    );
+  const discover = useCallback(() => {
+    StableConnection.setDesiredState({
+      status: 'DISCOVERING',
+      discoveryMethod: StripeTerminal.DiscoveryMethodBluetoothScan,
+      simulated: 0,
+    });
   }, []);
 
   const discoverSimulators = useCallback(() => {
@@ -89,7 +89,7 @@ export default function App() {
         ) : null}
         {connection.status === 'NOT_CONNECTED' ? (
           <View>
-            <Pressable style={styles.button} onPress={discoverReaders}>
+            <Pressable style={styles.button} onPress={discover}>
               <Text style={styles.buttonLabel}>Discover readers</Text>
             </Pressable>
             <Pressable style={styles.button} onPress={discoverSimulators}>
@@ -103,12 +103,12 @@ export default function App() {
             <Text style={styles.buttonLabel}>Connect</Text>
           </Pressable>
         ) : null}
-        {connection.reader ? (
+        {connection.status === 'CONNECTED' && connection.reader ? (
           <Pressable style={styles.button} onPress={disconnectReader}>
             <Text style={styles.buttonLabel}>Disconnect</Text>
           </Pressable>
         ) : null}
-        {connection.reader ? (
+        {connection.status === 'CONNECTED' && connection.reader ? (
           <Pressable style={styles.button} onPress={createPaymentIntent}>
             <Text style={styles.buttonLabel}>Create payment intent</Text>
           </Pressable>
