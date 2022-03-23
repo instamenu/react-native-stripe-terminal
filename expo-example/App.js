@@ -7,7 +7,8 @@ import {
   useStripeTerminalPayment,
 } from 'react-native-stripe-terminal';
 
-const locationId = 'tml_EhN5g36SNpnQLF';
+const locationId = 'tml_***';
+const connectionTokenUrl = 'https://***/connection_tokens';
 
 export default function App() {
   const connection = useStripeTerminalConnection();
@@ -15,10 +16,7 @@ export default function App() {
   useEffect(() => {
     StableConnection.initialize({
       fetchConnectionToken: () => {
-        return fetch(
-          'https://instamenu-api-staging.herokuapp.com/connection_tokens',
-          { method: 'POST' }
-        )
+        return fetch(connectionTokenUrl, { method: 'POST' })
           .then((resp) => resp.json())
           .then((j) => {
             console.log(JSON.stringify(j, null, 2));
