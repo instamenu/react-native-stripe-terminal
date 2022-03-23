@@ -11,12 +11,17 @@
 // https://github.com/brodybits/create-react-native-module/issues/232
 
 const path = require('path');
+const { getDefaultConfig } = require('expo/metro-config');
+
+const defaultConfig = getDefaultConfig(__dirname);
 
 module.exports = {
+  ...defaultConfig,
   // workaround for an issue with symlinks encountered starting with
   // metro@0.55 / React Native 0.61
   // (not needed with React Native 0.60 / metro@0.54)
   resolver: {
+    ...defaultConfig.resolver,
     extraNodeModules: new Proxy(
       {},
       { get: (_, name) => path.resolve('.', 'node_modules', name) }
