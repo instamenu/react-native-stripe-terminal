@@ -46,76 +46,81 @@ class StableConnection extends EventEmitter {
     console.log('processsss');
     if (this._processing) return;
     this._processing = true;
-    if (this.isInDesiredState()) {
-      console.log('reached desired state: ', this._desiredState);
-      this._processing = false;
-      return;
-    }
-    console.log(
-      `attempting to transition state from: ${StripeTerminal.connection.status} to: ${this._desiredState.status}`
-    );
-    if (
-      this._previousConnectionState === StripeTerminal.connection &&
-      this._previousDesiredState === this._desiredState
-    ) {
-      // we’re stuck: nothing has changed, and we must have reached the end of our retries.
-      // wait for something to change to try again.
+    try {
+      if (this.isInDesiredState()) {
+        console.log('reached desired state: ', this._desiredState);
+        // this._processing = false;
+        return;
+      }
       console.log(
-        'state hasn’t changed. listen for a change before trying again.'
+        `attempting to transition state from: ${StripeTerminal.connection.status} to: ${this._desiredState.status}`
       );
-      this._processing = false;
-      // StripeTerminal.once('connectionChange', () => retry(this.process.bind(this)));
-      return;
-    }
-    this._previousConnectionState = StripeTerminal.connection;
-    this._previousDesiredState = this._desiredState;
-    if (this._desiredState.status === 'NOT_CONNECTED') {
-      await StripeTerminal.disconnectReader();
-    }
-    if (this._desiredState.status === 'DISCOVERING') {
-      if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
-        if (
-          StripeTerminal.connection.discoveryError ===
-          'Could not execute discoverReaders because the SDK is busy with another command: discoverReaders.'
-        ) {
-          await StripeTerminal.abortDiscoverReaders();
-        }
-        await StripeTerminal.discoverReaders(
-          this._desiredState.discoveryMethod,
-          this._desiredState.simulated
+      if (
+        this._previousConnectionState === StripeTerminal.connection &&
+        this._previousDesiredState === this._desiredState
+      ) {
+        // we’re stuck: nothing has changed, and we must have reached the end of our retries.
+        // wait for something to change to try again.
+        console.log(
+          'state hasn’t changed. listen for a change before trying again.'
         );
-      } else {
+        // this._processing = false;
+        // StripeTerminal.once('connectionChange', () => retry(this.process.bind(this)));
+        return;
+      }
+      this._previousConnectionState = StripeTerminal.connection;
+      this._previousDesiredState = this._desiredState;
+      if (this._desiredState.status === 'NOT_CONNECTED') {
         await StripeTerminal.disconnectReader();
       }
-    }
-    if (this._desiredState.status === 'CONNECTED') {
-      if (StripeTerminal.connection.status === 'NOT_INITIALIZED') {
-        await StripeTerminal._init;
-      }
-      if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
-        await StripeTerminal.discoverReaders(
-          this._desiredState.discoveryMethod,
-          this._desiredState.simulated
-        );
-      }
-      if (StripeTerminal.connection.status === 'DISCOVERING') {
-        const findAndConnect = async (connection) => {
-          const foundDesiredReader = connection.readers.find(
-            (r) => r.serialNumber === this._desiredState.serialNumber
-          );
-          console.log('ran find and connect, found: ', !!foundDesiredReader);
-          if (foundDesiredReader) {
-            await StripeTerminal.connectReader(
-              this._desiredState.serialNumber,
-              this._desiredState.location
-            );
-            return true;
+      if (this._desiredState.status === 'DISCOVERING') {
+        if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
+          if (
+            StripeTerminal.connection.discoveryError ===
+            'Could not execute discoverReaders because the SDK is busy with another command: discoverReaders.'
+          ) {
+            await StripeTerminal.abortDiscoverReaders();
           }
-        };
-        await findAndConnect(StripeTerminal.connection);
+          await StripeTerminal.discoverReaders(
+            this._desiredState.discoveryMethod,
+            this._desiredState.simulated
+          );
+        } else {
+          await StripeTerminal.disconnectReader();
+        }
       }
+      if (this._desiredState.status === 'CONNECTED') {
+        if (StripeTerminal.connection.status === 'NOT_INITIALIZED') {
+          await StripeTerminal._init;
+        }
+        if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
+          await StripeTerminal.discoverReaders(
+            this._desiredState.discoveryMethod,
+            this._desiredState.simulated
+          );
+        }
+        if (StripeTerminal.connection.status === 'DISCOVERING') {
+          const findAndConnect = async (connection) => {
+            const foundDesiredReader = connection.readers.find(
+              (r) => r.serialNumber === this._desiredState.serialNumber
+            );
+            console.log('ran find and connect, found: ', !!foundDesiredReader);
+            if (foundDesiredReader) {
+              await StripeTerminal.connectReader(
+                this._desiredState.serialNumber,
+                this._desiredState.location
+              );
+              return;
+            }
+          };
+          await findAndConnect(StripeTerminal.connection);
+        }
+      }
+    } catch (e) {
+      throw e;
+    } finally {
+      this._processing = false;
     }
-    this._processing = false;
     return this.process();
   }
 }

@@ -1,11 +1,40 @@
 import { NativeEventEmitter, NativeModules } from 'react-native';
 import EventEmitter from 'events';
-import { logger } from 'react-native-logs';
 const { RNStripeTerminal } = NativeModules;
 const constants = RNStripeTerminal.getConstants();
 const nativeEventEmitter = new NativeEventEmitter(RNStripeTerminal);
 
-var log = logger.createLogger();
+const eventTypes = [
+  'connectionStatus',
+  'didChangeConnectionStatus',
+  'didChangePaymentStatus',
+  'didFinishInstallingUpdate',
+  'didReportAvailableUpdate',
+  'didReportBatteryLevel',
+  'didReportLowBatteryWarning',
+  'didReportReaderEvent',
+  'didReportReaderSoftwareUpdateProgress',
+  'didReportUnexpectedReaderDisconnect',
+  'didRequestReaderDisplayMessage',
+  'didRequestReaderInput',
+  'didStartInstallingUpdate',
+  'lastReaderEvent',
+  'log',
+  'paymentCreation',
+  'paymentIntentCancel',
+  'paymentIntentCreation',
+  'paymentIntentRetrieval',
+  'paymentMethodCollection',
+  'paymentProcess',
+  'paymentStatus',
+  'readerConnection',
+  'readerDisconnectCompletion',
+  'readersDiscovered',
+  'readerDiscoveryCompletion',
+  'requestConnectionToken',
+];
+
+// eventTypes.forEach(type=>nativeEventEmitter.removeAllListeners(type));
 
 const ConnectionStatus = {
   0: 'NOT_CONNECTED',
@@ -34,19 +63,15 @@ class StripeTerminal extends EventEmitter {
     return this._connection;
   }
   set connection(value) {
-    if (value.status !== this._connection.status) {
-      log.debug(
-        `changed connection status to ${value.status} and payment status to ${
-          value.status === 'CONNECTED' ? 'READY' : 'NOT_CONNECTED'
-        }`
-      );
+    const next = typeof value === 'function' ? value(this._connection) : value;
+    console.log('updating connection state with: ', next);
+    if (next.status !== this._connection.status) {
       this.payment = {
         ...this.payment,
-        status: value.status === 'CONNECTED' ? 'READY' : 'NOT_CONNECTED',
+        status: next.status === 'CONNECTED' ? 'READY' : 'NOT_CONNECTED',
       };
     }
-    this._connection =
-      typeof value === 'function' ? value(this._connection) : value;
+    this._connection = next;
     this.emit('connectionChange', this._connection);
   }
   get payment() {
@@ -58,7 +83,7 @@ class StripeTerminal extends EventEmitter {
   }
   async initialize({ fetchConnectionToken }) {
     if (this.initialized) {
-      log.info(
+      console.info(
         'StripeTerminal.initialize(...) has already been called. Skipping.'
       );
       return;
@@ -96,14 +121,14 @@ class StripeTerminal extends EventEmitter {
     });
     nativeEventEmitter.addListener('readerDiscoveryCompletion', (res) => {
       if (res.error) {
-        log.log('readerDiscoveryCompletion', res);
+        console.log('readerDiscoveryCompletion', res);
         this.connection = {
           ...this.connection,
           status: ConnectionStatus[0],
           discoveryError: res.error,
         };
       } else {
-        log.log('readerDiscoveryCompletion', res);
+        console.log('readerDiscoveryCompletion', res);
       }
     });
     nativeEventEmitter.addListener('readerConnection', (reader) => {
@@ -126,7 +151,8 @@ class StripeTerminal extends EventEmitter {
       }
     );
     nativeEventEmitter.addListener('log', (message) => {
-      log.debug(
+      // return;
+      console.log(
         'StripeTerminal',
         Object.fromEntries(
           message
@@ -159,16 +185,16 @@ class StripeTerminal extends EventEmitter {
     nativeEventEmitter.addListener(
       'didRequestReaderDisplayMessage',
       ({ text }) => {
-        log.log('didRequestReaderDisplayMessage', text);
+        console.log('didRequestReaderDisplayMessage', text);
         this.payment = { ...this.payment, displayMessage: text };
       }
     );
     nativeEventEmitter.addListener('didRequestReaderInput', ({ text }) => {
-      log.log('didRequestReaderInput', text);
+      console.log('didRequestReaderInput', text);
       this.payment = { ...this.payment, inputRequest: text };
     });
     nativeEventEmitter.addListener('didChangePaymentStatus', (...args) => {
-      log.log('didChangePaymentStatus', args);
+      console.log('didChangePaymentStatus', args);
     });
     const currentState = await RNStripeTerminal.initialize();
     this.connection = {
@@ -192,7 +218,7 @@ class StripeTerminal extends EventEmitter {
       simulated,
       discoveryError: undefined,
     };
-    log.log('CALLING DISCOVER');
+    console.log('CALLING DISCOVER');
     return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
   }
   async abortDiscoverReaders() {
@@ -222,7 +248,7 @@ class StripeTerminal extends EventEmitter {
       throw 'You must provide an amount to createPaymentIntent.';
     }
     if (!parameters?.currency) {
-      log.warn(
+      console.warn(
         'No currency provided to createPaymentIntent. Defaulting to `usd`.'
       );
     }
@@ -293,7 +319,11 @@ class StripeTerminal extends EventEmitter {
   }
   async abortInstallUpdate() {
     return RNStripeTerminal.abortInstallUpdate().then(() => {
-      this.connection = { status: 'NOT_CONNECTED', readers: [] };
+      this.connection = {
+        ...this.connection,
+        status: 'NOT_CONNECTED',
+        readers: [],
+      };
     });
   }
   setSimulatedCard(type) {
