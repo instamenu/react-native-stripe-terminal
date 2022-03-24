@@ -132,14 +132,26 @@ class StripeTerminal extends EventEmitter {
       }
     });
     nativeEventEmitter.addListener('readerConnection', (reader) => {
-      this.connection = {
-        ...this.connection,
-        status: ConnectionStatus[1],
-        reader,
-        serialNumber: reader.serialNumber,
-        location: reader.locationId,
-        readers: [],
-      };
+      if (reader.error) {
+        this.connection = {
+          ...this.connection,
+          connectionError: reader.error,
+          status: 'NOT_CONNECTED',
+          // reader: undefined,
+          // serialNumber: reader.serialNumber,
+          // location: reader.locationId,
+          // readers: [],
+        };
+      } else {
+        this.connection = {
+          ...this.connection,
+          status: ConnectionStatus[1],
+          reader,
+          serialNumber: reader.serialNumber,
+          location: reader.locationId,
+          readers: [],
+        };
+      }
     });
     nativeEventEmitter.addListener(
       'didReportReaderSoftwareUpdateProgress',
@@ -240,7 +252,11 @@ class StripeTerminal extends EventEmitter {
   async disconnectReader() {
     await this.abortCurrentOperation();
     return RNStripeTerminal.disconnectReader().then(() => {
-      this.connection = { ...this.connection, status: ConnectionStatus[0] };
+      this.connection = {
+        ...this.connection,
+        status: ConnectionStatus[0],
+        reader: null,
+      };
     });
   }
   async createPaymentIntent(parameters) {
@@ -325,6 +341,13 @@ class StripeTerminal extends EventEmitter {
         readers: [],
       };
     });
+  }
+  async clearConnectionError() {
+    this.connection = {
+      ...this.connection,
+      status: 'NOT_CONNECTED',
+      connectionError: null,
+    };
   }
   setSimulatedCard(type) {
     return RNStripeTerminal.setSimulatedCard(type);

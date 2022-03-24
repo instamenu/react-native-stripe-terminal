@@ -15,10 +15,7 @@ export default function App() {
   useEffect(() => {
     StripeTerminal.initialize({
       fetchConnectionToken: () => {
-        return fetch(
-          connectionTokenUrl,
-          {method: 'POST'},
-        )
+        return fetch(connectionTokenUrl, {method: 'POST'})
           .then(resp => resp.json())
           .then(json => json.secret);
       },
