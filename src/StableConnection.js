@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { StripeTerminal } from './StripeTerminal';
+import { StripeTerminal, ConnectionStatus } from './StripeTerminal';
 
 /*
 wrapper to stably set the desired connection state
@@ -10,21 +10,21 @@ state transitions: NOT_CONNECTED > DISCOVERING > { CONNECTING, UPDATING } > CONN
 */
 
 const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-const retry = async (fn, depth = 0) => {
+const retry = async (fn, attempt = 0) => {
   try {
     return await fn();
   } catch (e) {
-    if (depth > 5) {
+    if (attempt > 5) {
       throw e;
     }
     console.log('failed. waiting to retry.');
-    await wait(2 ** depth * 500);
-    return retry(fn, depth + 1);
+    await wait(2 ** attempt * 500);
+    return retry(fn, attempt + 1);
   }
 };
 
 class StableConnection extends EventEmitter {
-  _desiredState = { status: 'NOT_CONNECTED' };
+  _desiredState = { status: ConnectionStatus.NOT_CONNECTED };
   constructor() {
     super();
     StripeTerminal.on('connectionChange', () => retry(this.process.bind(this)));
@@ -43,13 +43,11 @@ class StableConnection extends EventEmitter {
     );
   }
   async process() {
-    console.log('processsss');
     if (this._processing) return;
     this._processing = true;
     try {
       if (this.isInDesiredState()) {
         console.log('reached desired state: ', this._desiredState);
-        // this._processing = false;
         return;
       }
       console.log(
@@ -64,17 +62,17 @@ class StableConnection extends EventEmitter {
         console.log(
           'state hasn’t changed. listen for a change before trying again.'
         );
-        // this._processing = false;
-        // StripeTerminal.once('connectionChange', () => retry(this.process.bind(this)));
         return;
       }
       this._previousConnectionState = StripeTerminal.connection;
       this._previousDesiredState = this._desiredState;
-      if (this._desiredState.status === 'NOT_CONNECTED') {
+      if (this._desiredState.status === ConnectionStatus.NOT_CONNECTED) {
         await StripeTerminal.disconnectReader();
       }
-      if (this._desiredState.status === 'DISCOVERING') {
-        if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
+      if (this._desiredState.status === ConnectionStatus.DISCOVERING) {
+        if (
+          StripeTerminal.connection.status === ConnectionStatus.NOT_CONNECTED
+        ) {
           if (
             StripeTerminal.connection.discoveryError ===
             'Could not execute discoverReaders because the SDK is busy with another command: discoverReaders.'
@@ -89,17 +87,21 @@ class StableConnection extends EventEmitter {
           await StripeTerminal.disconnectReader();
         }
       }
-      if (this._desiredState.status === 'CONNECTED') {
-        if (StripeTerminal.connection.status === 'NOT_INITIALIZED') {
+      if (this._desiredState.status === ConnectionStatus.CONNECTED) {
+        if (
+          StripeTerminal.connection.status === ConnectionStatus.NOT_INITIALIZED
+        ) {
           await StripeTerminal._init;
         }
-        if (StripeTerminal.connection.status === 'NOT_CONNECTED') {
+        if (
+          StripeTerminal.connection.status === ConnectionStatus.NOT_CONNECTED
+        ) {
           await StripeTerminal.discoverReaders(
             this._desiredState.discoveryMethod,
             this._desiredState.simulated
           );
         }
-        if (StripeTerminal.connection.status === 'DISCOVERING') {
+        if (StripeTerminal.connection.status === ConnectionStatus.DISCOVERING) {
           const findAndConnect = async (connection) => {
             const foundDesiredReader = connection.readers.find(
               (r) => r.serialNumber === this._desiredState.serialNumber

@@ -4,54 +4,58 @@ const { RNStripeTerminal } = NativeModules;
 const constants = RNStripeTerminal.getConstants();
 const nativeEventEmitter = new NativeEventEmitter(RNStripeTerminal);
 
-const eventTypes = [
-  'connectionStatus',
-  'didChangeConnectionStatus',
-  'didChangePaymentStatus',
-  'didFinishInstallingUpdate',
-  'didReportAvailableUpdate',
-  'didReportBatteryLevel',
-  'didReportLowBatteryWarning',
-  'didReportReaderEvent',
-  'didReportReaderSoftwareUpdateProgress',
-  'didReportUnexpectedReaderDisconnect',
-  'didRequestReaderDisplayMessage',
-  'didRequestReaderInput',
-  'didStartInstallingUpdate',
-  'lastReaderEvent',
-  'log',
-  'paymentCreation',
-  'paymentIntentCancel',
-  'paymentIntentCreation',
-  'paymentIntentRetrieval',
-  'paymentMethodCollection',
-  'paymentProcess',
-  'paymentStatus',
-  'readerConnection',
-  'readerDisconnectCompletion',
-  'readersDiscovered',
-  'readerDiscoveryCompletion',
-  'requestConnectionToken',
-];
+export const ConnectionStatus = {
+  NOT_CONNECTED: 'NOT_CONNECTED',
+  CONNECTED: 'CONNECTED',
+  CONNECTING: 'CONNECTING',
+  DISCOVERING: 'DISCOVERING',
+  NOT_INITIALIZED: 'NOT_INITIALIZED',
 
-// eventTypes.forEach(type=>nativeEventEmitter.removeAllListeners(type));
-
-const ConnectionStatus = {
-  0: 'NOT_CONNECTED',
-  1: 'CONNECTED',
-  2: 'CONNECTING',
+  // https://stripe.dev/stripe-terminal-ios/docs/Enums/SCPConnectionStatus.html
+  fromSCPConnectionStatus(value) {
+    switch (value) {
+      case 0:
+        return ConnectionStatus.NOT_CONNECTED;
+      case 1:
+        return ConnectionStatus.CONNECTED;
+      case 2:
+        return ConnectionStatus.CONNECTING;
+      default:
+        throw `Invalid value: ${value}`;
+    }
+  },
 };
 
-const PaymentStatus = {
-  0: 'NOT_READY',
-  1: 'READY',
-  2: 'WAITING_FOR_INPUT',
-  3: 'PROCESSING',
+export const PaymentStatus = {
+  NOT_READY: 'NOT_READY',
+  READY: 'READY',
+  WAITING_FOR_INPUT: 'WAITING_FOR_INPUT',
+  PROCESSING: 'PROCESSING',
+  NOT_CONNECTED: 'NOT_CONNECTED',
+  READY_TO_PROCESS: 'READY_TO_PROCESS',
+  PAYMENT_SUCCESS: 'PAYMENT_SUCCESS',
+  CREATING_PAYMENT_INTENT: 'CREATING_PAYMENT_INTENT',
+
+  // https://stripe.dev/stripe-terminal-ios/docs/Enums/SCPPaymentStatus.html
+  fromSCPPaymentStatus(value) {
+    switch (value) {
+      case 0:
+        return PaymentStatus.NOT_READY;
+      case 1:
+        return PaymentStatus.READY;
+      case 2:
+        return PaymentStatus.WAITING_FOR_INPUT;
+      case 3:
+        return PaymentStatus.PROCESSING;
+      default:
+        throw `Invalid value: ${value}`;
+    }
+  },
 };
 
 class StripeTerminal extends EventEmitter {
-  _connection = { status: 'NOT_INITIALIZED', readers: [] };
-  _payment = { status: 'NOT_CONNECTED' };
+  _connection = { status: ConnectionStatus.NOT_INITIALIZED, readers: [] };
+  _payment = { status: ConnectionStatus.NOT_CONNECTED };
   _abort = () => {};
   constructor() {
     super();
@@ -68,7 +72,10 @@ class StripeTerminal extends EventEmitter {
     if (next.status !== this._connection.status) {
       this.payment = {
         ...this.payment,
-        status: next.status === 'CONNECTED' ? 'READY' : 'NOT_CONNECTED',
+        status:
+          next.status === ConnectionStatus.CONNECTED
+            ? PaymentStatus.READY
+            : PaymentStatus.NOT_CONNECTED,
       };
     }
     this._connection = next;
@@ -106,7 +113,10 @@ class StripeTerminal extends EventEmitter {
     nativeEventEmitter.addListener(
       'didReportUnexpectedReaderDisconnect',
       (readers) => {
-        this.connection = { ...this.connection, status: 'NOT_CONNECTED' };
+        this.connection = {
+          ...this.connection,
+          status: ConnectionStatus.NOT_CONNECTED,
+        };
       }
     );
     nativeEventEmitter.addListener('readersDiscovered', (readers) => {
@@ -115,7 +125,7 @@ class StripeTerminal extends EventEmitter {
     nativeEventEmitter.addListener('readerDisconnectCompletion', () => {
       this.connection = {
         ...this.connection,
-        status: ConnectionStatus[0],
+        status: ConnectionStatus.NOT_CONNECTED,
         reader: undefined,
       };
     });
@@ -124,7 +134,7 @@ class StripeTerminal extends EventEmitter {
         console.log('readerDiscoveryCompletion', res);
         this.connection = {
           ...this.connection,
-          status: ConnectionStatus[0],
+          status: ConnectionStatus.NOT_CONNECTED,
           discoveryError: res.error,
         };
       } else {
@@ -136,16 +146,12 @@ class StripeTerminal extends EventEmitter {
         this.connection = {
           ...this.connection,
           connectionError: reader.error,
-          status: 'NOT_CONNECTED',
-          // reader: undefined,
-          // serialNumber: reader.serialNumber,
-          // location: reader.locationId,
-          // readers: [],
+          status: ConnectionStatus.NOT_CONNECTED,
         };
       } else {
         this.connection = {
           ...this.connection,
-          status: ConnectionStatus[1],
+          status: ConnectionStatus.CONNECTED,
           reader,
           serialNumber: reader.serialNumber,
           location: reader.locationId,
@@ -163,7 +169,6 @@ class StripeTerminal extends EventEmitter {
       }
     );
     nativeEventEmitter.addListener('log', (message) => {
-      // return;
       console.log(
         'StripeTerminal',
         Object.fromEntries(
@@ -211,12 +216,14 @@ class StripeTerminal extends EventEmitter {
     const currentState = await RNStripeTerminal.initialize();
     this.connection = {
       ...this.connection,
-      status: ConnectionStatus[currentState.connectionStatus],
+      status: ConnectionStatus.fromSCPConnectionStatus(
+        currentState.connectionStatus
+      ),
       reader: currentState.reader,
     };
     this.payment = {
       ...this.payment,
-      status: PaymentStatus[currentState.paymentStatus],
+      status: PaymentStatus.fromSCPPaymentStatus(currentState.paymentStatus),
     };
     this._resolveInit();
   }
@@ -225,19 +232,18 @@ class StripeTerminal extends EventEmitter {
     this._abort = this.abortDiscoverReaders.bind(this);
     this.connection = {
       ...this.connection,
-      status: 'DISCOVERING',
+      status: ConnectionStatus.DISCOVERING,
       discoveryMethod,
       simulated,
       discoveryError: undefined,
     };
-    console.log('CALLING DISCOVER');
     return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
   }
   async abortDiscoverReaders() {
     await RNStripeTerminal.abortDiscoverReaders();
     this.connection = {
       ...this.connection,
-      status: ConnectionStatus[0],
+      status: ConnectionStatus.NOT_CONNECTED,
       discoveryError: undefined,
       readers: [],
     };
@@ -246,7 +252,10 @@ class StripeTerminal extends EventEmitter {
     return nativeEventEmitter.addListener(...args);
   }
   connectReader(serialNumber, locationId) {
-    this.connection = { ...this.connection, status: ConnectionStatus[2] };
+    this.connection = {
+      ...this.connection,
+      status: ConnectionStatus.CONNECTING,
+    };
     return RNStripeTerminal.connectReader(serialNumber, locationId);
   }
   async disconnectReader() {
@@ -254,7 +263,7 @@ class StripeTerminal extends EventEmitter {
     return RNStripeTerminal.disconnectReader().then(() => {
       this.connection = {
         ...this.connection,
-        status: ConnectionStatus[0],
+        status: ConnectionStatus.NOT_CONNECTED,
         reader: null,
       };
     });
@@ -268,12 +277,15 @@ class StripeTerminal extends EventEmitter {
         'No currency provided to createPaymentIntent. Defaulting to `usd`.'
       );
     }
-    this.payment = { paymentIntent, status: 'CREATING_PAYMENT_INTENT' };
+    this.payment = {
+      paymentIntent,
+      status: PaymentStatus.CREATING_PAYMENT_INTENT,
+    };
     const paymentIntent = await RNStripeTerminal.createPaymentIntent({
       amount: parameters.amount,
       currency: parameters?.currency ?? 'usd',
     });
-    this.payment = { paymentIntent, status: 'READY' };
+    this.payment = { paymentIntent, status: PaymentStatus.READY };
     return paymentIntent;
   }
 
@@ -282,7 +294,7 @@ class StripeTerminal extends EventEmitter {
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to collectPaymentMethod.';
     }
-    this.payment = { ...this.payment, status: 'WAITING_FOR_INPUT' };
+    this.payment = { ...this.payment, status: PaymentStatus.WAITING_FOR_INPUT };
     const paymentMethod = await RNStripeTerminal.collectPaymentMethod(
       paymentIntent
     ).catch((e) => {
@@ -295,14 +307,14 @@ class StripeTerminal extends EventEmitter {
     this.payment = {
       ...this.payment,
       paymentMethod,
-      status: 'READY_TO_PROCESS',
+      status: PaymentStatus.READY_TO_PROCESS,
     };
     return paymentMethod;
   }
 
   async abortCollectPaymentMethod() {
     return RNStripeTerminal.abortCollectPaymentMethod().then(() => {
-      this.payment = { ...this.payment, status: 'READY' };
+      this.payment = { ...this.payment, status: PaymentStatus.READY };
     });
   }
 
@@ -318,18 +330,18 @@ class StripeTerminal extends EventEmitter {
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to processPayment.';
     }
-    this.payment = { ...this.payment, status: 'PROCESSING_PAYMENT' };
+    this.payment = { ...this.payment, status: PaymentStatus.PROCESSING };
     return RNStripeTerminal.processPayment(paymentIntent)
       .then((pi) => {
         this.payment = {
           ...this.payment,
           payment: pi,
-          status: 'PAYMENT_SUCCESS',
+          status: PaymentStatus.PAYMENT_SUCCESS,
         };
         return pi;
       })
       .catch((e) => {
-        this.payment = { ...this.payment, status: 'READY' };
+        this.payment = { ...this.payment, status: PaymentStatus.READY };
         throw e;
       });
   }
@@ -337,7 +349,7 @@ class StripeTerminal extends EventEmitter {
     return RNStripeTerminal.abortInstallUpdate().then(() => {
       this.connection = {
         ...this.connection,
-        status: 'NOT_CONNECTED',
+        status: ConnectionStatus.NOT_CONNECTED,
         readers: [],
       };
     });
@@ -345,7 +357,7 @@ class StripeTerminal extends EventEmitter {
   async clearConnectionError() {
     this.connection = {
       ...this.connection,
-      status: 'NOT_CONNECTED',
+      status: ConnectionStatus.NOT_CONNECTED,
       connectionError: null,
     };
   }
