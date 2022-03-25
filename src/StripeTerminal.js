@@ -109,7 +109,24 @@ class StripeTerminal extends EventEmitter {
           )
         )
     );
-
+    nativeEventEmitter.addListener(
+      'didReportReaderEvent',
+      ({ event, info }) => {
+        this.connection = {
+          ...this.connection,
+          reader: { ...this.connection.reader, isCardInserted: !event },
+        };
+      }
+    );
+    nativeEventEmitter.addListener(
+      'didReportBatteryLevel',
+      ({ batteryLevel, isCharging }) => {
+        this.connection = {
+          ...this.connection,
+          reader: { ...this.connection.reader, batteryLevel, isCharging },
+        };
+      }
+    );
     nativeEventEmitter.addListener(
       'didReportUnexpectedReaderDisconnect',
       (readers) => {
