@@ -4,12 +4,21 @@ const { RNStripeTerminal } = NativeModules;
 const constants = RNStripeTerminal.getConstants();
 const nativeEventEmitter = new NativeEventEmitter(RNStripeTerminal);
 
+export const DeviceTypes = {
+  0: 'BBPOS Chipper 2X BT',
+  1: 'Verifone P400',
+  2: 'BBPOS WisePad 3',
+  3: 'Stripe Reader M2',
+  4: 'BBPOS WisePOS E',
+};
+
 export const ConnectionStatus = {
   NOT_CONNECTED: 'NOT_CONNECTED',
   CONNECTED: 'CONNECTED',
   CONNECTING: 'CONNECTING',
   DISCOVERING: 'DISCOVERING',
   NOT_INITIALIZED: 'NOT_INITIALIZED',
+  UPDATING: 'UPDATING',
 
   // https://stripe.dev/stripe-terminal-ios/docs/Enums/SCPConnectionStatus.html
   fromSCPConnectionStatus(value) {
@@ -52,6 +61,14 @@ export const PaymentStatus = {
     }
   },
 };
+
+const stringifyReaderEnums = (reader) =>
+  reader
+    ? {
+        ...reader,
+        deviceType: DeviceTypes[reader.deviceType],
+      }
+    : reader;
 
 class StripeTerminal extends EventEmitter {
   _connection = { status: ConnectionStatus.NOT_INITIALIZED, readers: [] };
@@ -129,7 +146,7 @@ class StripeTerminal extends EventEmitter {
     );
     nativeEventEmitter.addListener(
       'didReportUnexpectedReaderDisconnect',
-      (readers) => {
+      () => {
         this.connection = {
           ...this.connection,
           status: ConnectionStatus.NOT_CONNECTED,
@@ -137,7 +154,10 @@ class StripeTerminal extends EventEmitter {
       }
     );
     nativeEventEmitter.addListener('readersDiscovered', (readers) => {
-      this.connection = { ...this.connection, readers };
+      this.connection = {
+        ...this.connection,
+        readers: readers.map(stringifyReaderEnums),
+      };
     });
     nativeEventEmitter.addListener('readerDisconnectCompletion', () => {
       this.connection = {
@@ -169,7 +189,7 @@ class StripeTerminal extends EventEmitter {
         this.connection = {
           ...this.connection,
           status: ConnectionStatus.CONNECTED,
-          reader,
+          reader: stringifyReaderEnums(reader),
           serialNumber: reader.serialNumber,
           location: reader.locationId,
           readers: [],
@@ -236,7 +256,7 @@ class StripeTerminal extends EventEmitter {
       status: ConnectionStatus.fromSCPConnectionStatus(
         currentState.connectionStatus
       ),
-      reader: currentState.reader,
+      reader: stringifyReaderEnums(currentState.reader),
     };
     this.payment = {
       ...this.payment,
