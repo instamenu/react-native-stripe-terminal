@@ -19,6 +19,7 @@ export const ConnectionStatus = {
   DISCOVERING: 'DISCOVERING',
   NOT_INITIALIZED: 'NOT_INITIALIZED',
   UPDATING: 'UPDATING',
+  ERROR: 'ERROR',
 
   // https://stripe.dev/stripe-terminal-ios/docs/Enums/SCPConnectionStatus.html
   fromSCPConnectionStatus(value) {
@@ -126,6 +127,8 @@ class StripeTerminal extends EventEmitter {
           )
         )
     );
+    // `didReportReaderEvent` doesn’t seem to fire for the M2, so use the log event instead for now
+    /*
     nativeEventEmitter.addListener(
       'didReportReaderEvent',
       ({ event, info }) => {
@@ -135,6 +138,7 @@ class StripeTerminal extends EventEmitter {
         };
       }
     );
+    */
     nativeEventEmitter.addListener(
       'didReportBatteryLevel',
       ({ batteryLevel, isCharging }) => {
@@ -183,7 +187,7 @@ class StripeTerminal extends EventEmitter {
         this.connection = {
           ...this.connection,
           connectionError: reader.error,
-          status: ConnectionStatus.NOT_CONNECTED,
+          status: ConnectionStatus.ERROR,
         };
       } else {
         this.connection = {
@@ -206,25 +210,37 @@ class StripeTerminal extends EventEmitter {
       }
     );
     nativeEventEmitter.addListener('log', (message) => {
-      console.log(
-        'StripeTerminal',
-        Object.fromEntries(
-          message
-            .split(' ')
-            .slice(1)
-            .map((pair) => pair.split('='))
-            .filter(
-              ([key, value]) =>
-                ![
-                  'app_id',
-                  'sdk_version',
-                  'last_request_id',
-                  'scope',
-                  'time',
-                ].includes(key)
-            )
-        )
+      const parsed = Object.fromEntries(
+        message
+          .split(' ')
+          .slice(1)
+          .map((pair) => pair.split('='))
+          .filter(
+            ([key, value]) =>
+              ![
+                'app_id',
+                'sdk_version',
+                'last_request_id',
+                'scope',
+                'time',
+              ].includes(key)
+          )
       );
+      if (
+        parsed.bb_check_card_result === 'BBDeviceCheckCardResult_InsertedCard'
+      ) {
+        this.connection = {
+          ...this.connection,
+          reader: { ...this.connection.reader, isCardInserted: true },
+        };
+      }
+      if (parsed.bb_check_card_result === 'BBDeviceCheckCardResult_NoCard') {
+        this.connection = {
+          ...this.connection,
+          reader: { ...this.connection.reader, isCardInserted: false },
+        };
+      }
+      console.log('StripeTerminal', parsed);
     });
     nativeEventEmitter.addListener('didFinishInstallingUpdate', () => {
       this.connection = { ...this.connection, update: undefined };
@@ -291,7 +307,11 @@ class StripeTerminal extends EventEmitter {
   connectReader(serialNumber, locationId) {
     this.connection = {
       ...this.connection,
+      connectionError: null,
       status: ConnectionStatus.CONNECTING,
+      reader: this.connection.readers.find(
+        (r) => r.serialNumber === serialNumber
+      ),
     };
     return RNStripeTerminal.connectReader(serialNumber, locationId);
   }

@@ -79,6 +79,12 @@ class StableConnection extends EventEmitter {
           ) {
             await StripeTerminal.abortDiscoverReaders();
           }
+          if (
+            StripeTerminal.connection.discoveryError ===
+            'Already connected to a reader. Disconnect from the reader, or power it off before trying again.'
+          ) {
+            await StripeTerminal.disconnectReader();
+          }
           await StripeTerminal.discoverReaders(
             this._desiredState.discoveryMethod,
             this._desiredState.simulated
@@ -88,6 +94,12 @@ class StableConnection extends EventEmitter {
         }
       }
       if (this._desiredState.status === ConnectionStatus.CONNECTED) {
+        if (
+          StripeTerminal.connection.connectionError ===
+          'The reader has a critically low battery and cannot connect to the iOS device. Charge the reader before trying again.'
+        ) {
+          return;
+        }
         if (
           StripeTerminal.connection.status === ConnectionStatus.NOT_INITIALIZED
         ) {
