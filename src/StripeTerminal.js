@@ -43,7 +43,6 @@ export const PaymentStatus = {
   PROCESSING: 'PROCESSING',
   NOT_CONNECTED: 'NOT_CONNECTED',
   READY_TO_PROCESS: 'READY_TO_PROCESS',
-  PAYMENT_SUCCESS: 'PAYMENT_SUCCESS',
   CREATING_PAYMENT_INTENT: 'CREATING_PAYMENT_INTENT',
 
   // https://stripe.dev/stripe-terminal-ios/docs/Enums/SCPPaymentStatus.html
@@ -393,7 +392,7 @@ class StripeTerminal extends EventEmitter {
         this.payment = {
           ...this.payment,
           payment: pi,
-          status: PaymentStatus.PAYMENT_SUCCESS,
+          status: PaymentStatus.READY,
         };
         return pi;
       })
