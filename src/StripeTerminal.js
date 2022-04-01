@@ -66,6 +66,7 @@ const stringifyReaderEnums = (reader) =>
   reader
     ? {
         ...reader,
+        isCharging: !!reader.isCharging,
         deviceType: DeviceTypes[reader.deviceType],
       }
     : reader;
@@ -143,7 +144,11 @@ class StripeTerminal extends EventEmitter {
       ({ batteryLevel, isCharging }) => {
         this.connection = {
           ...this.connection,
-          reader: { ...this.connection.reader, batteryLevel, isCharging },
+          reader: {
+            ...this.connection.reader,
+            batteryLevel,
+            isCharging: !!isCharging,
+          },
         };
       }
     );
@@ -353,8 +358,14 @@ class StripeTerminal extends EventEmitter {
     this.payment = { ...this.payment, status: PaymentStatus.WAITING_FOR_INPUT };
     const paymentMethod = await RNStripeTerminal.collectPaymentMethod(
       paymentIntent
-    ).catch((e) => {
-      if (e.message === 'The command was canceled.') {
+    ).catch(async (e) => {
+      if (
+        e.message ===
+        'Could not execute collectPaymentMethod because the SDK is busy with another command: collectPaymentMethod.'
+      ) {
+        await this.abortCollectPaymentMethod();
+        return this.collectPaymentMethod({ paymentIntent });
+      } else if (e.message === 'The command was canceled.') {
         // if the command was manually canceled, don’t consider it an error
         return;
       }
@@ -379,7 +390,19 @@ class StripeTerminal extends EventEmitter {
   }
 
   async retrievePaymentIntent(clientSecret) {
-    return RNStripeTerminal.retrievePaymentIntent(clientSecret);
+    return RNStripeTerminal.retrievePaymentIntent(clientSecret).catch(
+      async (e) => {
+        if (
+          e.message ===
+          'Could not execute retrievePaymentIntent because the SDK is busy with another command: collectPaymentMethod.'
+        ) {
+          await this.abortCollectPaymentMethod();
+          return this.retrievePaymentIntent(clientSecret);
+        } else {
+          throw e;
+        }
+      }
+    );
   }
 
   async processPayment({ paymentIntent }) {
