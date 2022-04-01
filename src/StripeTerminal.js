@@ -66,6 +66,7 @@ const stringifyReaderEnums = (reader) =>
   reader
     ? {
         ...reader,
+        // isCharging is false if the battery is at 100% whether the reader is plugged in or not
         isCharging: !!reader.isCharging,
         deviceType: DeviceTypes[reader.deviceType],
       }
