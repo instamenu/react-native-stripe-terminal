@@ -17,7 +17,7 @@ const retry = async (fn, attempt = 0) => {
     if (attempt > 5) {
       throw e;
     }
-    console.log('failed. waiting to retry.');
+    StripeTerminal.logLevel && console.log('failed. waiting to retry.');
     await wait(2 ** attempt * 500);
     return retry(fn, attempt + 1);
   }
@@ -33,7 +33,7 @@ class StableConnection extends EventEmitter {
     StripeTerminal.initialize(...args);
   }
   setDesiredState(state) {
-    console.log('setDesiredState', state);
+    StripeTerminal.logLevel && console.log('setDesiredState', state);
     this._desiredState = state;
     retry(() => this.process());
   }
@@ -47,21 +47,24 @@ class StableConnection extends EventEmitter {
     this._processing = true;
     try {
       if (this.isInDesiredState()) {
-        console.log('reached desired state: ', this._desiredState);
+        StripeTerminal.logLevel &&
+          console.log('reached desired state: ', this._desiredState);
         return;
       }
-      console.log(
-        `attempting to transition state from: ${StripeTerminal.connection.status} to: ${this._desiredState.status}`
-      );
+      StripeTerminal.logLevel &&
+        console.log(
+          `attempting to transition state from: ${StripeTerminal.connection.status} to: ${this._desiredState.status}`
+        );
       if (
         this._previousConnectionState === StripeTerminal.connection &&
         this._previousDesiredState === this._desiredState
       ) {
         // we’re stuck: nothing has changed, and we must have reached the end of our retries.
         // wait for something to change to try again.
-        console.log(
-          'state hasn’t changed. listen for a change before trying again.'
-        );
+        StripeTerminal.logLevel &&
+          console.log(
+            'state hasn’t changed. listen for a change before trying again.'
+          );
         return;
       }
       this._previousConnectionState = StripeTerminal.connection;
@@ -118,7 +121,11 @@ class StableConnection extends EventEmitter {
             const foundDesiredReader = connection.readers.find(
               (r) => r.serialNumber === this._desiredState.serialNumber
             );
-            console.log('ran find and connect, found: ', !!foundDesiredReader);
+            StripeTerminal.logLevel &&
+              console.log(
+                'ran find and connect, found: ',
+                !!foundDesiredReader
+              );
             if (foundDesiredReader) {
               await StripeTerminal.connectReader(
                 this._desiredState.serialNumber,

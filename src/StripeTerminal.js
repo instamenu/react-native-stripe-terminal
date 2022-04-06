@@ -76,6 +76,14 @@ class StripeTerminal extends EventEmitter {
   _connection = { status: ConnectionStatus.NOT_INITIALIZED, readers: [] };
   _payment = { status: ConnectionStatus.NOT_CONNECTED };
   _abort = () => {};
+  _logLevel = 0;
+
+  get logLevel() {
+    return this._logLevel;
+  }
+  set logLevel(value) {
+    this._logLevel = value;
+  }
   constructor() {
     super();
     this._init = new Promise((resolve) => {
@@ -87,7 +95,7 @@ class StripeTerminal extends EventEmitter {
   }
   set connection(value) {
     const next = typeof value === 'function' ? value(this._connection) : value;
-    console.log('updating connection state with: ', next);
+    this.logLevel && console.log('updating connection state with: ', next);
     if (next.status !== this._connection.status) {
       this.payment = {
         ...this.payment,
@@ -177,14 +185,14 @@ class StripeTerminal extends EventEmitter {
     });
     nativeEventEmitter.addListener('readerDiscoveryCompletion', (res) => {
       if (res.error) {
-        console.log('readerDiscoveryCompletion', res);
+        this.logLevel && console.log('readerDiscoveryCompletion', res);
         this.connection = {
           ...this.connection,
           status: ConnectionStatus.NOT_CONNECTED,
           discoveryError: res.error,
         };
       } else {
-        console.log('readerDiscoveryCompletion', res);
+        this.logLevel && console.log('readerDiscoveryCompletion', res);
       }
     });
     nativeEventEmitter.addListener('readerConnection', (reader) => {
@@ -245,7 +253,7 @@ class StripeTerminal extends EventEmitter {
           reader: { ...this.connection.reader, isCardInserted: false },
         };
       }
-      console.log('StripeTerminal', parsed);
+      this.logLevel && console.log('StripeTerminal', parsed);
     });
     nativeEventEmitter.addListener('didFinishInstallingUpdate', () => {
       this.connection = { ...this.connection, update: undefined };
@@ -260,16 +268,16 @@ class StripeTerminal extends EventEmitter {
     nativeEventEmitter.addListener(
       'didRequestReaderDisplayMessage',
       ({ text }) => {
-        console.log('didRequestReaderDisplayMessage', text);
+        this.logLevel && console.log('didRequestReaderDisplayMessage', text);
         this.payment = { ...this.payment, displayMessage: text };
       }
     );
     nativeEventEmitter.addListener('didRequestReaderInput', ({ text }) => {
-      console.log('didRequestReaderInput', text);
+      this.logLevel && console.log('didRequestReaderInput', text);
       this.payment = { ...this.payment, inputRequest: text };
     });
     nativeEventEmitter.addListener('didChangePaymentStatus', (...args) => {
-      console.log('didChangePaymentStatus', args);
+      this.logLevel && console.log('didChangePaymentStatus', args);
     });
     const currentState = await RNStripeTerminal.initialize();
     this.connection = {
