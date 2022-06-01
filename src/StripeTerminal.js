@@ -72,11 +72,34 @@ const stringifyReaderEnums = (reader) =>
       }
     : reader;
 
+class Queue {
+  queue = [];
+  add(fn) {
+    const p = new Promise((resolve, reject) => {
+      this.queue.push({ fn, resolve, reject });
+      if (this.queue.length === 1) this.process();
+    });
+    return p;
+  }
+  process() {
+    if (this.queue.length === 0) return;
+    this.queue[0]
+      .fn()
+      .then(this.queue[0].resolve)
+      .catch(this.queue[0].reject)
+      .finally(() => {
+        this.queue.shift();
+        this.process();
+      });
+  }
+}
+
 class StripeTerminal extends EventEmitter {
   _connection = { status: ConnectionStatus.NOT_INITIALIZED, readers: [] };
   _payment = { status: ConnectionStatus.NOT_CONNECTED };
   _abort = () => {};
   _logLevel = 0;
+  _queue = new Queue();
 
   get logLevel() {
     return this._logLevel;
@@ -294,16 +317,18 @@ class StripeTerminal extends EventEmitter {
     this._resolveInit();
   }
   async discoverReaders(discoveryMethod, simulated) {
-    await this._init;
-    this._abort = this.abortDiscoverReaders.bind(this);
-    this.connection = {
-      ...this.connection,
-      status: ConnectionStatus.DISCOVERING,
-      discoveryMethod,
-      simulated,
-      discoveryError: undefined,
-    };
-    return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
+    return this._queue.add(async () => {
+      await this._init;
+      this._abort = this.abortDiscoverReaders.bind(this);
+      this.connection = {
+        ...this.connection,
+        status: ConnectionStatus.DISCOVERING,
+        discoveryMethod,
+        simulated,
+        discoveryError: undefined,
+      };
+      return RNStripeTerminal.discoverReaders(discoveryMethod, simulated);
+    });
   }
   async abortDiscoverReaders() {
     await RNStripeTerminal.abortDiscoverReaders();
@@ -318,15 +343,17 @@ class StripeTerminal extends EventEmitter {
     return nativeEventEmitter.addListener(...args);
   }
   connectReader(serialNumber, locationId) {
-    this.connection = {
-      ...this.connection,
-      connectionError: null,
-      status: ConnectionStatus.CONNECTING,
-      reader: this.connection.readers.find(
-        (r) => r.serialNumber === serialNumber
-      ),
-    };
-    return RNStripeTerminal.connectReader(serialNumber, locationId);
+    return this._queue.add(async () => {
+      this.connection = {
+        ...this.connection,
+        connectionError: null,
+        status: ConnectionStatus.CONNECTING,
+        reader: this.connection.readers.find(
+          (r) => r.serialNumber === serialNumber
+        ),
+      };
+      return RNStripeTerminal.connectReader(serialNumber, locationId);
+    });
   }
   async disconnectReader() {
     await this.abortCurrentOperation();
@@ -339,53 +366,60 @@ class StripeTerminal extends EventEmitter {
     });
   }
   async createPaymentIntent(parameters) {
-    if (!parameters?.amount) {
-      throw 'You must provide an amount to createPaymentIntent.';
-    }
-    if (!parameters?.currency) {
-      console.warn(
-        'No currency provided to createPaymentIntent. Defaulting to `usd`.'
-      );
-    }
-    this.payment = {
-      paymentIntent,
-      status: PaymentStatus.CREATING_PAYMENT_INTENT,
-    };
-    const paymentIntent = await RNStripeTerminal.createPaymentIntent({
-      amount: parameters.amount,
-      currency: parameters?.currency ?? 'usd',
+    return this._queue.add(async () => {
+      if (!parameters?.amount) {
+        throw 'You must provide an amount to createPaymentIntent.';
+      }
+      if (!parameters?.currency) {
+        console.warn(
+          'No currency provided to createPaymentIntent. Defaulting to `usd`.'
+        );
+      }
+      this.payment = {
+        paymentIntent,
+        status: PaymentStatus.CREATING_PAYMENT_INTENT,
+      };
+      const paymentIntent = await RNStripeTerminal.createPaymentIntent({
+        amount: parameters.amount,
+        currency: parameters?.currency ?? 'usd',
+      });
+      this.payment = { paymentIntent, status: PaymentStatus.READY };
+      return paymentIntent;
     });
-    this.payment = { paymentIntent, status: PaymentStatus.READY };
-    return paymentIntent;
   }
 
   async collectPaymentMethod({ paymentIntent }) {
-    this._abort = this.abortCollectPaymentMethod.bind(this);
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to collectPaymentMethod.';
     }
-    this.payment = { ...this.payment, status: PaymentStatus.WAITING_FOR_INPUT };
-    const paymentMethod = await RNStripeTerminal.collectPaymentMethod(
-      paymentIntent
-    ).catch(async (e) => {
-      if (
-        e.message ===
-        'Could not execute collectPaymentMethod because the SDK is busy with another command: collectPaymentMethod.'
-      ) {
-        await this.abortCollectPaymentMethod();
-        return this.collectPaymentMethod({ paymentIntent });
-      } else if (e.message === 'The command was canceled.') {
-        // if the command was manually canceled, don’t consider it an error
-        return;
-      }
-      throw e;
+    return this._queue.add(async () => {
+      this._abort = this.abortCollectPaymentMethod.bind(this);
+      this.payment = {
+        ...this.payment,
+        status: PaymentStatus.WAITING_FOR_INPUT,
+      };
+      const paymentMethod = await RNStripeTerminal.collectPaymentMethod(
+        paymentIntent
+      ).catch(async (e) => {
+        if (
+          e.message ===
+          'Could not execute collectPaymentMethod because the SDK is busy with another command: collectPaymentMethod.'
+        ) {
+          await this.abortCollectPaymentMethod();
+          return this.collectPaymentMethod({ paymentIntent });
+        } else if (e.message === 'The command was canceled.') {
+          // if the command was manually canceled, don’t consider it an error
+          return;
+        }
+        throw e;
+      });
+      this.payment = {
+        ...this.payment,
+        paymentMethod,
+        status: PaymentStatus.READY_TO_PROCESS,
+      };
+      return paymentMethod;
     });
-    this.payment = {
-      ...this.payment,
-      paymentMethod,
-      status: PaymentStatus.READY_TO_PROCESS,
-    };
-    return paymentMethod;
   }
 
   abortingCollectPaymentMethod = false;
@@ -402,12 +436,12 @@ class StripeTerminal extends EventEmitter {
   }
 
   async getCurrentState() {
-    return RNStripeTerminal.getCurrentState();
+    return this._queue.add(async () => RNStripeTerminal.getCurrentState());
   }
 
   async retrievePaymentIntent(clientSecret) {
-    return RNStripeTerminal.retrievePaymentIntent(clientSecret).catch(
-      async (e) => {
+    const fn = async () =>
+      RNStripeTerminal.retrievePaymentIntent(clientSecret).catch(async (e) => {
         if (
           e.message ===
           'Could not execute retrievePaymentIntent because the SDK is busy with another command: collectPaymentMethod.'
@@ -417,28 +451,31 @@ class StripeTerminal extends EventEmitter {
         } else {
           throw e;
         }
-      }
-    );
+      });
+    return this._queue.add(fn);
   }
 
   async processPayment({ paymentIntent }) {
     if (!paymentIntent) {
       throw 'You must provide a paymentIntent to processPayment.';
     }
-    this.payment = { ...this.payment, status: PaymentStatus.PROCESSING };
-    return RNStripeTerminal.processPayment(paymentIntent)
-      .then((pi) => {
-        this.payment = {
-          ...this.payment,
-          payment: pi,
-          status: PaymentStatus.READY,
-        };
-        return pi;
-      })
-      .catch((e) => {
-        this.payment = { ...this.payment, status: PaymentStatus.READY };
-        throw e;
-      });
+    const fn = async () => {
+      this.payment = { ...this.payment, status: PaymentStatus.PROCESSING };
+      return RNStripeTerminal.processPayment(paymentIntent)
+        .then((pi) => {
+          this.payment = {
+            ...this.payment,
+            payment: pi,
+            status: PaymentStatus.READY,
+          };
+          return pi;
+        })
+        .catch((e) => {
+          this.payment = { ...this.payment, status: PaymentStatus.READY };
+          throw e;
+        });
+    };
+    return this._queue.add(fn);
   }
   async abortInstallUpdate() {
     return RNStripeTerminal.abortInstallUpdate().then(() => {
@@ -457,7 +494,7 @@ class StripeTerminal extends EventEmitter {
     };
   }
   setSimulatedCard(type) {
-    return RNStripeTerminal.setSimulatedCard(type);
+    return this._queue.add(async () => RNStripeTerminal.setSimulatedCard(type));
   }
   async abortCurrentOperation() {
     return this._abort();
