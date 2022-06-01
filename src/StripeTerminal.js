@@ -424,15 +424,17 @@ class StripeTerminal extends EventEmitter {
 
   abortingCollectPaymentMethod = false;
   async abortCollectPaymentMethod() {
-    if (this.abortingCollectPaymentMethod) return;
-    this.abortingCollectPaymentMethod = true;
-    return RNStripeTerminal.abortCollectPaymentMethod()
-      .then(() => {
-        this.payment = { ...this.payment, status: PaymentStatus.READY };
-      })
-      .finally(() => {
-        this.abortingCollectPaymentMethod = false;
-      });
+    if (!this.abortingCollectPaymentMethod) {
+      this.abortingCollectPaymentMethod =
+        RNStripeTerminal.abortCollectPaymentMethod()
+          .then(() => {
+            this.payment = { ...this.payment, status: PaymentStatus.READY };
+          })
+          .finally(() => {
+            this.abortingCollectPaymentMethod = null;
+          });
+    }
+    return this.abortingCollectPaymentMethod;
   }
 
   async getCurrentState() {
